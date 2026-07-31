@@ -1,0 +1,33 @@
+{
+  "name": "verities-smartcontract",
+  "version": "0.1.0",
+  "description": "Verities Protocol — Compact smart contracts for privacy-first behavioral reputation on Midnight",
+  "private": true,
+  "scripts": {
+    "compile": "compact compile src/oracle_registry.compact && compact compile src/trust_attestation.compact",
+    "compile:registry": "compact compile src/oracle_registry.compact",
+    "compile:attestation": "compact compile src/trust_attestation.compact",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "deploy:preprod": "bash deploy.sh preprod",
+    "deploy:preview": "bash deploy.sh preview",
+    "clean": "rm -rf managed/"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "latest",
+    "@midnight-ntwrk/ledger": "latest",
+    "@midnight-ntwrk/midnight-js-contracts": "latest",
+    "@midnight-ntwrk/midnight-js-types": "latest",
+    "@midnight-ntwrk/midnight-js-network-id": "latest"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
