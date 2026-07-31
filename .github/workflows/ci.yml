@@ -1,0 +1,65 @@
+name: Verities CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Compile & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: smartcontract/package-lock.json
+
+      - name: Install Midnight toolchain (Compact compiler)
+        run: |
+          echo "Installing Midnight Compact compiler..."
+          npm install -g @midnight-ntwrk/compact-compiler
+          compact --version || echo "Compact installed"
+
+      - name: Install dependencies
+        working-directory: smartcontract
+        run: npm ci
+
+      - name: Compile oracle_registry.compact
+        working-directory: smartcontract
+        run: |
+          echo "Compiling oracle_registry..."
+          compact compile src/oracle_registry.compact
+          echo "✅ oracle_registry compiled"
+
+      - name: Compile trust_attestation.compact
+        working-directory: smartcontract
+        run: |
+          echo "Compiling trust_attestation..."
+          compact compile src/trust_attestation.compact
+          echo "✅ trust_attestation compiled"
+
+      - name: Verify managed/ directory (circuits + keys)
+        working-directory: smartcontract
+        run: |
+          echo "Verifying managed/ directory..."
+          ls -la managed/
+          echo "✅ ZK circuits and keys generated"
+
+      - name: Run test suite
+        working-directory: smartcontract
+        run: npm test
+
+      - name: Upload managed/ as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-circuits
+          path: smartcontract/managed/
+          retention-days: 30
