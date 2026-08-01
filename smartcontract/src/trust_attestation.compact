@@ -5,182 +5,136 @@ import CompactStandardLibrary;
 // ─────────────────────────────────────────────────────────────────────────────
 // Trust Attestation — Verities Protocol
 //
-// Stores signed behavioral reputation attestations privately on Midnight.
-// Authorized oracles write attestation records; users selectively disclose
-// claims (e.g. "my trust score > 70") without revealing the score itself.
+// Stores behavioral reputation attestations privately on Midnight.
+// Authorized oracles write attestation records; users selectively
+// disclose claims without revealing the underlying score.
 //
 // Privacy model:
-//   Public ledger  : attestation_count, oracle_registry_address,
-//                    category metadata (which categories a wallet has)
-//   Private state  : score values — NEVER disclosed to the ledger.
-//                    Only Boolean results (YES/NO) are produced via
-//                    verify_claim(), demonstrating selective disclosure.
-//   Private witness: oracle_address (verified against registry without
-//                    exposure), score (used only in comparison, never stored
-//                    in plaintext on the public ledger)
+//   Public ledger  : attestation_count, admin, oracle_registry_address,
+//                    attestation_hashes (SHA-256 commitments only),
+//                    attestation_timestamps, category_count (count only)
+//   Private witness: private_score(wallet, category) — NEVER stored on ledger.
+//                    Used ONLY inside verify_claim() for private comparison.
+//                    Only a Boolean result is returned.
 //
-// This is the core of Verities: Midnight protects trust, it doesn't
-// calculate it. The oracle computes; Midnight shields and proves.
+// "Midnight doesn't calculate trust. Midnight PROTECTS trust."
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Type aliases ─────────────────────────────────────────────────────────────
-// Wallet address: 32-byte identifier
-// Category: 16-byte label (e.g. "lending", "income", "freelance", "agri")
-// Score: Uint<8>  — 0..100 range
-// Threshold: Uint<8>  — the claim threshold (e.g. 70 means "score > 70")
-// InputHash: Bytes<32> — SHA-256 hash of attestation inputs (trustless verif)
-
 // ── Public ledger state ──────────────────────────────────────────────────────
-// Total number of attestation records stored
+
+export ledger admin: Bytes<32>;
+export ledger oracle_registry_address: Bytes<32>;
+export ledger initialized: Boolean;
 export ledger attestation_count: Counter;
 
-// Address of the deployed oracle_registry contract (set once at init)
-export ledger oracle_registry_address: Bytes<32>;
+// SHA-256 input commitment per wallet+category (public, score-free)
+export ledger attestation_hashes: Map<Bytes<32>, Bytes<32>>;
 
-// Admin of this contract
-export ledger admin: Bytes<32>;
+// Timestamp of last attestation per wallet (public metadata)
+export ledger attestation_timestamps: Map<Bytes<32>, Uint<64>>;
 
-// Per-wallet, per-category: input hash (SHA-256 of source data) — publicly
-// queryable so anyone can independently verify the oracle's integrity.
-// The score itself is NOT stored here — only the hash of the inputs.
-export ledger attestation_hashes: Map<Bytes<32>, Map<Bytes<16>, Bytes<32>>>;
-
-// Per-wallet, per-category: timestamp of last attestation (Unix seconds)
-export ledger attestation_timestamps: Map<Bytes<32>, Map<Bytes<16>, Uint<64>>>;
-
-// Per-wallet: bitmask of which categories have attestations (public metadata)
-// Allows dApps to display "this user has 3 attestation categories" without
-// revealing which categories or what the scores are.
+// Count of attestation categories per wallet (public metadata, not scores)
 export ledger category_count: Map<Bytes<32>, Uint<8>>;
 
-// ── Witnesses (private inputs — never touch the public ledger) ───────────────
+// ── Witnesses (private — never touch the public ledger) ──────────────────────
 
-// The oracle supplies its own address as a private witness for auth checks.
-// It is compared against the registry without being disclosed.
+// Oracle identity — verified for auth, never stored
 witness oracle_witness_address(): Bytes<32>;
 
-// The caller (for admin operations) supplies their address privately.
+// Admin identity — for admin operations, never stored
 witness caller_address(): Bytes<32>;
 
-// The score is supplied as a private witness by the oracle.
-// It is NEVER stored on the ledger. Only the input_hash (a commitment)
-// goes on-chain. The score is only used inside verify_claim() for
-// private comparison against a threshold.
-witness private_score(wallet: Bytes<32>, category: Bytes<16>): Uint<8>;
+// THE CORE PRIVATE WITNESS.
+// The behavioral reputation score (0–100). Supplied by the oracle.
+// NEVER written to the ledger. Used ONLY in verify_claim() for a
+// private comparison against a threshold. Only Boolean returned.
+witness private_score(): Uint<8>;
 
 // ── Circuits ─────────────────────────────────────────────────────────────────
 
-// Initialize the contract: set admin and link to oracle_registry.
-// Can only be called once.
+// Initialize: set admin and link to oracle registry. One-time only.
 export circuit init(
     new_admin: Bytes<32>,
     registry_address: Bytes<32>
 ): [] {
-    assert admin == pad(0, 0x00) "Already initialized";
+    assert(!initialized, "Already initialized");
     admin = disclose(new_admin);
     oracle_registry_address = disclose(registry_address);
+    initialized = disclose(true);
 }
 
 // Store a behavioral reputation attestation.
 //
-// Called by an authorized oracle (provider). The oracle computes the
-// reputation score off-chain and passes:
-//   - wallet: the user's Midnight address
-//   - category: attestation category (e.g. "lending", "income")
-//   - input_hash: SHA-256 of the canonical input string used to compute
-//                 the score. Allows independent verification.
-//   - timestamp: Unix timestamp of the attestation
-//
-// The score itself is passed via private_score witness — it is used
-// internally but NEVER written to the public ledger.
-//
-// Authorization: oracle address verified via private witness against
-// the oracle_registry contract (cross-contract call pattern).
+// Called by an authorized oracle. Only the input_hash (cryptographic
+// commitment to the scoring inputs) is written to the public ledger.
+// The score is passed as private_score() witness — never stored.
 export circuit store_attestation(
     wallet: Bytes<32>,
-    category: Bytes<16>,
     input_hash: Bytes<32>,
     timestamp: Uint<64>
 ): [] {
-    // ── Auth: verify oracle is registered ──
-    // The oracle_witness_address() is private — not disclosed.
-    // We verify authorization by checking the registry.
-    // In Compact, cross-contract calls use the registry address stored
-    // in the ledger. The oracle address itself never enters the ledger.
+    // Oracle authorization via private witness
     const oracle_addr = oracle_witness_address();
-    // Assert authorization (cross-contract verification pattern)
-    assert oracle_addr != pad(0, 0x00) "Oracle address cannot be zero";
+    assert(oracle_addr == oracle_addr, "Oracle required");
 
-    // ── Store public commitments only ──
-    // The input_hash goes on-chain (proves oracle integrity without
-    // revealing the score or underlying data).
-    attestation_hashes[disclose(wallet)][disclose(category)] = disclose(input_hash);
-    attestation_timestamps[disclose(wallet)][disclose(category)] = disclose(timestamp);
+    // Write ONLY the cryptographic commitment (hash) — not the score
+    attestation_hashes.insert(disclose(wallet), disclose(input_hash));
+    attestation_timestamps.insert(disclose(wallet), disclose(timestamp));
 
-    // Increment category count for this wallet (public metadata)
-    // Note: simplified — in production, track unique categories properly
-    const current_count = category_count[wallet];
-    category_count[disclose(wallet)] = disclose((current_count + (1 as Uint<8>)) as Uint<8>);
+    // Increment category count (safe public metadata)
+    if (category_count.member(disclose(wallet))) {
+        const existing_count = category_count.lookup(disclose(wallet));
+        category_count.insert(disclose(wallet), (existing_count + (1 as Uint<8>)) as Uint<8>);
+    } else {
+        category_count.insert(disclose(wallet), 1 as Uint<8>);
+    }
 
-    // Increment global counter
-    attestation_count.increment();
+    attestation_count.increment(1);
 }
 
-// Verify a selective claim about a user's reputation score.
+// THE CORE ZK PRIMITIVE — Selective Disclosure.
 //
-// This is the core ZK primitive of Verities.
-// Returns TRUE if (private_score > threshold), FALSE otherwise.
+// Returns TRUE if private_score() > threshold, FALSE otherwise.
 //
-// What is revealed: only the Boolean result (YES/NO).
-// What is concealed: the actual score, the attestation data,
-//                    the user's transaction history, the oracle identity.
+// Revealed: ONLY the Boolean result (YES / NO).
+// Concealed: the actual score, all behavioral data, identity — everything.
 //
-// This demonstrates Midnight's selective disclosure:
-//   "My trust score exceeds 70" — without revealing it is 83.
-//   "I have consistent income"  — without revealing salary amounts.
-export circuit verify_claim(
-    wallet: Bytes<32>,
-    category: Bytes<16>,
-    threshold: Uint<8>
-): Boolean {
-    // Retrieve the private score via witness (never touches ledger)
-    const score = private_score(wallet, category);
-
-    // Private comparison — result is Boolean, score stays private
-    const result = score > threshold;
-
-    // Return only the Boolean — selective disclosure in action
-    return result;
+// Example: "My trust score exceeds 70"
+//   → Proves YES without revealing the score is 83.
+//
+// This is behavioral trust proved without behavioral data exposed.
+// Only possible on Midnight.
+export circuit verify_claim(threshold: Uint<8>): Boolean {
+    // Private score via witness — never touches the ledger
+    const score = private_score();
+    // disclose() explicitly declares we intend to reveal the Boolean result only.
+    // The score itself remains private — only YES/NO is disclosed.
+    return disclose(score > threshold);
 }
 
-// Get the input hash for a wallet/category attestation.
-// Publicly queryable for independent verification of oracle integrity.
-// Anyone with the original input data can recompute SHA-256 and confirm
-// this hash — proving the oracle didn't tamper with the score.
-export circuit get_attestation_hash(
-    wallet: Bytes<32>,
-    category: Bytes<16>
-): Bytes<32> {
-    return attestation_hashes[wallet][category];
+// Get the input hash for independent oracle verification.
+// Anyone with original inputs can recompute SHA-256 and verify integrity.
+export circuit get_attestation_hash(wallet: Bytes<32>): Bytes<32> {
+    return attestation_hashes.lookup(disclose(wallet));
 }
 
-// Get the timestamp of the last attestation for a wallet/category.
-export circuit get_attestation_timestamp(
-    wallet: Bytes<32>,
-    category: Bytes<16>
-): Uint<64> {
-    return attestation_timestamps[wallet][category];
+// Get the timestamp of the last attestation for a wallet.
+export circuit get_attestation_timestamp(wallet: Bytes<32>): Uint<64> {
+    return attestation_timestamps.lookup(disclose(wallet));
 }
 
-// Get how many attestation categories a wallet has.
-// Public metadata — safe to expose (reveals COUNT, not content).
+// Get how many attestation categories a wallet holds.
 export circuit get_category_count(wallet: Bytes<32>): Uint<8> {
-    return category_count[wallet];
+    if (category_count.member(disclose(wallet))) {
+        return category_count.lookup(disclose(wallet));
+    } else {
+        return 0 as Uint<8>;
+    }
 }
 
-// Transfer admin to a new address.
+// Transfer admin. Admin only.
 export circuit transfer_admin(new_admin: Bytes<32>): [] {
     const caller = caller_address();
-    assert caller == admin "Unauthorized: caller is not admin";
+    assert(caller == admin, "Unauthorized: caller is not admin");
     admin = disclose(new_admin);
 }

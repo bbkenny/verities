@@ -10,65 +10,57 @@ import CompactStandardLibrary;
 // attestations to the trust_attestation contract.
 //
 // Privacy model:
-//   Public ledger  : oracle_count (how many oracles are registered)
-//   Private witness: admin performs admin actions; the admin key is never
-//                    stored in the ledger — it is verified via Midnight's
-//                    address-based authorization without disclosure.
+//   Public ledger  : oracle_count, admin, oracles map
+//   Private witness: caller_address() — compared against admin without
+//                    re-storing or disclosing to ledger
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Public ledger state ──────────────────────────────────────────────────────
+
 export ledger admin: Bytes<32>;
 export ledger oracle_count: Counter;
-// Oracle whitelist: address → registered (1 = authorized, 0 = not)
-export ledger oracles: Map<Bytes<32>, Uint<8>>;
+export ledger oracles: Map<Bytes<32>, Boolean>;
+export ledger initialized: Boolean;
 
 // ── Witnesses (private inputs) ───────────────────────────────────────────────
-// The caller supplies their own address as a witness; it is compared
-// against the stored admin without ever being disclosed to the ledger.
+
+// Admin identity supplied as private witness — never re-disclosed to ledger
 witness caller_address(): Bytes<32>;
 
 // ── Circuits ─────────────────────────────────────────────────────────────────
 
-// Initialize the registry with a first admin.
-// Can only be called once (admin must be unset / zero bytes).
+// Initialize registry with first admin. One-time only.
 export circuit init(new_admin: Bytes<32>): [] {
-    // Guard: only initialize once
-    assert admin == pad(0, 0x00) "Already initialized";
+    assert(!initialized, "Already initialized");
     admin = disclose(new_admin);
+    initialized = disclose(true);
 }
 
-// Add an oracle to the authorized whitelist.
-// Caller must be the current admin (enforced via private witness).
+// Add an oracle to the authorized whitelist. Admin only.
 export circuit add_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
-    assert caller == admin "Unauthorized: caller is not admin";
-    // Authorize the oracle
-    oracles[disclose(oracle_address)] = disclose(1 as Uint<8>);
-    oracle_count.increment();
+    assert(caller == admin, "Unauthorized: caller is not admin");
+    oracles.insert(disclose(oracle_address), true);
+    oracle_count.increment(1);
 }
 
-// Remove an oracle from the authorized whitelist.
-// Caller must be the current admin.
+// Remove an oracle from the whitelist. Admin only.
 export circuit remove_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
-    assert caller == admin "Unauthorized: caller is not admin";
-    // Deauthorize
-    oracles[disclose(oracle_address)] = disclose(0 as Uint<8>);
-    oracle_count.decrement();
+    assert(caller == admin, "Unauthorized: caller is not admin");
+    oracles.insert(disclose(oracle_address), false);
+    oracle_count.decrement(1);
 }
 
-// Check whether a given address is an authorized oracle.
+// Check if an address is an authorized oracle.
 // Returns true if registered, false otherwise.
-// Called cross-contract by trust_attestation before writing.
 export circuit is_authorized(oracle_address: Bytes<32>): Boolean {
-    const status = oracles[oracle_address];
-    return status == (1 as Uint<8>);
+    return oracles.member(disclose(oracle_address));
 }
 
-// Transfer admin to a new address (two-step ownership pattern).
-// Caller must be current admin.
+// Transfer admin to a new address. Admin only.
 export circuit transfer_admin(new_admin: Bytes<32>): [] {
     const caller = caller_address();
-    assert caller == admin "Unauthorized: caller is not admin";
+    assert(caller == admin, "Unauthorized: caller is not admin");
     admin = disclose(new_admin);
 }
