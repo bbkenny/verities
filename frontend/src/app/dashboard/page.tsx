@@ -70,7 +70,7 @@ export default function Dashboard() {
             <h3 className="card-title">Recent Attestation</h3>
           </div>
           <div className="attestation-icon" style={{ marginTop: '1rem' }}>
-            <div style={{ width: '64px', height: '64px', background: 'linear-gradient(135deg, #F59E0B, #B45309)', borderRadius: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 0 20px rgba(245, 158, 11, 0.3)' }}>
+            <div style={{ width: '64px', height: '64px', background: 'linear-gradient(135deg, #DDA61A, #B38515)', borderRadius: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 0 20px rgba(221, 166, 26, 0.3)' }}>
               <Shield size={32} color="white" />
             </div>
           </div>
@@ -181,7 +181,7 @@ export default function Dashboard() {
             </div>
             <div className="connection-item">
               <div className="connection-info">
-                <div className="connection-logo" style={{ background: '#7C3AED', color: 'white' }}>T</div>
+                <div className="connection-logo" style={{ background: '#6B3F7F', color: 'white' }}>T</div>
                 <div className="connection-name">TrustGate</div>
               </div>
               <div className="status-badge status-active">

@@ -39,8 +39,8 @@ export default function Home() {
             </div>
             
             <div className="trust-badge" style={{ marginTop: '3rem', justifyContent: 'flex-start' }}>
-              <span><Shield size={16} color="#A855F7" /> Built on Midnight</span>
-              <span style={{ margin: '0 10px', color: '#4B5563' }}>•</span>
+              <span><Shield size={16} color="#B899D4" /> Built on Midnight</span>
+              <span style={{ margin: '0 10px', color: '#AFA8C3' }}>•</span>
               <span>Powered by Zero-Knowledge Proofs</span>
             </div>
           </div>
@@ -91,11 +91,11 @@ export default function Home() {
         <section className="bottom-section">
           <h3>Designed for the future of trust.</h3>
           <div className="badges">
-            <div className="badge"><Hexagon size={16} color="#A855F7"/> DeFi</div>
-            <div className="badge"><ShieldCheck size={16} color="#A855F7"/> Lending</div>
-            <div className="badge"><UserCheck size={16} color="#A855F7"/> Hiring</div>
-            <div className="badge"><Key size={16} color="#A855F7"/> Access Control</div>
-            <div className="badge"><Star size={16} color="#A855F7"/> Reputation</div>
+            <div className="badge"><Hexagon size={16} color="#B899D4"/> DeFi</div>
+            <div className="badge"><ShieldCheck size={16} color="#B899D4"/> Lending</div>
+            <div className="badge"><UserCheck size={16} color="#B899D4"/> Hiring</div>
+            <div className="badge"><Key size={16} color="#B899D4"/> Access Control</div>
+            <div className="badge"><Star size={16} color="#B899D4"/> Reputation</div>
             <div className="badge" style={{ fontStyle: 'italic' }}>And more...</div>
           </div>
         </section>
