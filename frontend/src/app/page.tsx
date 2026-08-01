@@ -5,8 +5,9 @@ export default function Home() {
   return (
     <>
       <nav className="navbar">
-        <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
+        <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <img src="/Verities-logo.png" alt="Verities Logo" style={{ height: '32px', objectFit: 'contain' }} />
+          <span>verities</span>
         </div>
         <div className="nav-links">
           <a href="#">Product</a>

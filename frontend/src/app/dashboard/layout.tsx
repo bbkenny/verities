@@ -10,8 +10,9 @@ export default function DashboardLayout({
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
-        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center' }}>
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <img src="/Verities-logo.png" alt="Verities Logo" style={{ height: '32px', objectFit: 'contain' }} />
+          <span>verities</span>
         </div>
         
         <nav className="nav-menu">
