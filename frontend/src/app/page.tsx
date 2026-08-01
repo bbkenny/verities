@@ -5,22 +5,8 @@ export default function Home() {
   return (
     <>
       <nav className="navbar">
-        <div className="logo">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="logo-icon">
-            <path d="M12 2L2 22H12L22 2H12Z" fill="url(#paint0_linear)"/>
-            <path d="M12 2L22 22H12L2 2H12Z" fill="url(#paint1_linear)" fillOpacity="0.5"/>
-            <defs>
-              <linearGradient id="paint0_linear" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#D8B4FE"/>
-                <stop offset="1" stopColor="#7C3AED"/>
-              </linearGradient>
-              <linearGradient id="paint1_linear" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#4C1D95"/>
-                <stop offset="1" stopColor="#A855F7"/>
-              </linearGradient>
-            </defs>
-          </svg>
-          verities
+        <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
+          <img src="/Verities-logo.png" alt="Verities Logo" style={{ height: '32px', objectFit: 'contain' }} />
         </div>
         <div className="nav-links">
           <a href="#">Product</a>
@@ -59,13 +45,7 @@ export default function Home() {
           </div>
           
           <div className="hero-visual">
-            <div className="glass-card"></div>
-            <div className="glass-card"></div>
-            <div className="glass-card">
-              <div className="glass-card-logo">V</div>
-            </div>
-            <div className="glowing-base"></div>
-            <div className="glowing-base-inner"></div>
+            <img src="/Verities-heroimg.png" alt="Verities Hero" style={{ width: '100%', maxWidth: '500px', height: 'auto', objectFit: 'contain' }} />
           </div>
         </section>
 
