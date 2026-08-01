@@ -458,6 +458,143 @@ trust scores              via zero-knowledge proofs
 
 ---
 
+## Screenshots
+
+### 🌑 Level 1 — New Moon Submission
+
+- **GitHub Repository:** [https://github.com/bbkenny/verities](https://github.com/bbkenny/verities)
+- **Contract Address:** `Pending — deployment attempted, Preview RPC unavailable at submission time`
+- **Compiler:** `compactc v0.31.1` · Language: `v0.23.0` · Platform: `x86_64 Linux`
+- **Circuits Generated:** 11 total (5 oracle_registry + 6 trust_attestation)
+
+### 🟣 Level 1 Requirements Map
+
+Each requirement mapped to the exact file, link, or screenshot that satisfies it.
+
+| Requirement | Status | Proof |
+|---|---|---|
+| Toolchain installed (Compact compiler, Node 22, Docker) | ✅ | `compactc v0.31.1` at `~/.compact/versions/0.31.1/` · Node `v22.18.0` — see [Setup section](#local-setup) |
+| Contract compiles via `compact compile` | ✅ | Both contracts compiled cleanly — 11 ZK circuits generated — screenshot below |
+| Passing test suite | ✅ | 26 tests across [`smartcontract/test/`](https://github.com/bbkenny/verities/tree/master/smartcontract/test) — run `npm test` |
+| Generated `managed/` directory (circuits + keys) | ✅ | [`smartcontract/managed/`](https://github.com/bbkenny/verities/tree/master/smartcontract/managed) — prover + verifier keys for all 11 circuits |
+| Contract deployed to Preview or Preprod | ⏳ | Pending — Preview RPC unavailable at submission time. Contract code complete and compiled. |
+| Initial product idea paragraph in README | ✅ | [Overview section](#overview) — behavioral reputation layer with ZK selective disclosure |
+| Minimum 5 meaningful commits | ✅ | [9 commits](https://github.com/bbkenny/verities/commits/master) — scaffold → contracts → tests → CI → compile → screenshots |
+
+### 📂 Level 1 — Code Proofs (For Reviewer)
+
+**1. Oracle Registry Contract**
+*File: `smartcontract/src/oracle_registry.compact`*
+
+```compact
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// ── Public ledger state ──────────────────────────────────────────────────────
+
+export ledger admin: Bytes<32>;
+export ledger oracle_count: Counter;
+export ledger oracles: Map<Bytes<32>, Boolean>;
+export ledger initialized: Boolean;
+
+// ── Witnesses (private inputs) ───────────────────────────────────────────────
+
+// Admin identity supplied as private witness — never re-disclosed to ledger
+witness caller_address(): Bytes<32>;
+
+// ── Circuits ─────────────────────────────────────────────────────────────────
+
+export circuit init(new_admin: Bytes<32>): [] {
+    assert(!initialized, "Already initialized");
+    admin = disclose(new_admin);
+    initialized = disclose(true);
+}
+
+export circuit add_oracle(oracle_address: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(caller == admin, "Unauthorized: caller is not admin");
+    oracles.insert(disclose(oracle_address), true);
+    oracle_count.increment(1);
+}
+
+export circuit is_authorized(oracle_address: Bytes<32>): Boolean {
+    return oracles.member(disclose(oracle_address));
+}
+
+export circuit transfer_admin(new_admin: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(caller == admin, "Unauthorized: caller is not admin");
+    admin = disclose(new_admin);
+}
+```
+
+**2. Trust Attestation Contract — The Core ZK Primitive**
+*File: `smartcontract/src/trust_attestation.compact`*
+
+```compact
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// ── Public ledger state ──────────────────────────────────────────────────────
+
+export ledger admin: Bytes<32>;
+export ledger oracle_registry_address: Bytes<32>;
+export ledger initialized: Boolean;
+export ledger attestation_count: Counter;
+
+// SHA-256 input commitment per wallet — public, score-free
+export ledger attestation_hashes: Map<Bytes<32>, Bytes<32>>;
+export ledger attestation_timestamps: Map<Bytes<32>, Uint<64>>;
+export ledger category_count: Map<Bytes<32>, Uint<8>>;
+
+// ── Witnesses (private — NEVER touch the public ledger) ──────────────────────
+
+witness oracle_witness_address(): Bytes<32>;
+witness caller_address(): Bytes<32>;
+
+// THE CORE PRIVATE WITNESS.
+// Behavioral score (0-100). Supplied by oracle. NEVER written to ledger.
+// Used ONLY in verify_claim() for private comparison. Only Boolean returned.
+witness private_score(): Uint<8>;
+
+// ── THE CORE ZK PRIMITIVE — Selective Disclosure ─────────────────────────────
+
+// Returns TRUE if private_score() > threshold, FALSE otherwise.
+// Revealed:  ONLY the Boolean result (YES / NO).
+// Concealed: the actual score, all behavioral data, identity — everything.
+//
+// Example: "My trust score exceeds 70"
+//   → Proves YES without revealing the score is 83.
+export circuit verify_claim(threshold: Uint<8>): Boolean {
+    const score = private_score();
+    // disclose() declares intent to reveal the Boolean result only.
+    // The score stays private forever.
+    return disclose(score > threshold);
+}
+
+export circuit store_attestation(
+    wallet: Bytes<32>,
+    input_hash: Bytes<32>,
+    timestamp: Uint<64>
+): [] {
+    attestation_hashes.insert(disclose(wallet), disclose(input_hash));
+    attestation_timestamps.insert(disclose(wallet), disclose(timestamp));
+    attestation_count.increment(1);
+}
+```
+
+### Level 1 Screenshots
+
+**Oracle Registry — 5/5 circuits compiled**
+![oracle_registry compile output](docs/screenshots/compile_oracle_registry.png)
+
+**Trust Attestation — 6/6 circuits compiled**
+![trust_attestation compile output](docs/screenshots/compile_trust_attestation.png)
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
