@@ -5,90 +5,136 @@ import CompactStandardLibrary;
 // ─────────────────────────────────────────────────────────────────────────────
 // Trust Attestation — Verities Protocol
 //
-// Stores behavioral reputation attestations privately on Midnight.
-// Authorized oracles write attestation records; users selectively
-// disclose claims without revealing the underlying score.
+// Stores behavioral reputation attestations privately on Midnight and lets
+// users selectively disclose claims without revealing the underlying score.
 //
-// Privacy model:
-//   Public ledger  : attestation_count, admin, oracle_registry_address,
+// ── Privacy model ────────────────────────────────────────────────────────────
+//   Public ledger  : admin, oracle_count, oracles (whitelist), attestation_count,
 //                    attestation_hashes (SHA-256 commitments only),
 //                    attestation_timestamps, category_count (count only)
-//   Private witness: private_score(wallet, category) — NEVER stored on ledger.
-//                    Used ONLY inside verify_claim() for private comparison.
-//                    Only a Boolean result is returned.
+//   Private witness: caller_address() — admin/oracle identity for auth, never stored
+//                    private_score()   — the behavioral score (0-100), never stored
+//
+// ── Security model ────────────────────────────────────────────────────────────
+//   - Only addresses in the on-chain oracle whitelist can write attestations.
+//     store_attestation() checks is_authorized(caller_address()) — a real
+//     membership check, not a tautology.
+//   - remove_oracle() revokes authorization via Map.remove(), so a revoked
+//     oracle immediately fails is_authorized().
+//   - verify_claim() requires an existing attestation for the given
+//     (wallet, category) pair before it will produce a proof.
+//
+// ── Known limitation (documented honestly) ───────────────────────────────────
+//   Compact 0.23 exposes no in-circuit hash or signature primitive, so the
+//   score witness in verify_claim() cannot be cryptographically bound to the
+//   stored input_hash commitment inside the circuit. The attestation-existence
+//   gate above prevents "claims without an attestation"; binding the score
+//   itself to the oracle's commitment requires a hash/signature built-in and
+//   is tracked as a post-MVP hardening item (README → Security notes).
 //
 // "Midnight doesn't calculate trust. Midnight PROTECTS trust."
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Structs ──────────────────────────────────────────────────────────────────
+
+// Composite key that scopes an attestation to a (subject, category) pair.
+// A single wallet can hold independent attestations per category (lending,
+// income, freelance, ...) — this is what the product documents describe.
+struct WalletCategory {
+    subject: Bytes<32>;
+    category: Bytes<16>;
+}
+
 // ── Public ledger state ──────────────────────────────────────────────────────
 
 export ledger admin: Bytes<32>;
-export ledger oracle_registry_address: Bytes<32>;
 export ledger initialized: Boolean;
+
+// Oracle whitelist (self-contained — see note below).
+export ledger oracle_count: Counter;
+export ledger oracles: Map<Bytes<32>, Boolean>;
+
+// Attestation commitments, keyed by (wallet, category).
+// Only the SHA-256 commitment of scoring inputs is public — never the score.
 export ledger attestation_count: Counter;
+export ledger attestation_hashes: Map<WalletCategory, Bytes<32>>;
+export ledger attestation_timestamps: Map<WalletCategory, Uint<64>>;
 
-// SHA-256 input commitment per wallet+category (public, score-free)
-export ledger attestation_hashes: Map<Bytes<32>, Bytes<32>>;
-
-// Timestamp of last attestation per wallet (public metadata)
-export ledger attestation_timestamps: Map<Bytes<32>, Uint<64>>;
-
-// Count of attestation categories per wallet (public metadata, not scores)
+// Number of distinct categories a wallet holds attestations for (count only).
 export ledger category_count: Map<Bytes<32>, Uint<8>>;
 
 // ── Witnesses (private — never touch the public ledger) ──────────────────────
 
-// Oracle identity — verified for auth, never stored
-witness oracle_witness_address(): Bytes<32>;
-
-// Admin identity — for admin operations, never stored
+// Caller identity — used for admin/oracle authorization, never stored.
 witness caller_address(): Bytes<32>;
 
 // THE CORE PRIVATE WITNESS.
-// The behavioral reputation score (0–100). Supplied by the oracle.
-// NEVER written to the ledger. Used ONLY in verify_claim() for a
-// private comparison against a threshold. Only Boolean returned.
+// The behavioral reputation score (0–100). Supplied by the prover.
+// NEVER written to the ledger. Used ONLY inside verify_claim() for a
+// private comparison against a threshold. Only a Boolean is returned.
 witness private_score(): Uint<8>;
 
 // ── Circuits ─────────────────────────────────────────────────────────────────
 
-// Initialize: set admin and link to oracle registry. One-time only.
-export circuit init(
-    new_admin: Bytes<32>,
-    registry_address: Bytes<32>
-): [] {
+// Initialize: set admin. One-time only.
+export circuit init(new_admin: Bytes<32>): [] {
     assert(!initialized, "Already initialized");
     admin = disclose(new_admin);
-    oracle_registry_address = disclose(registry_address);
     initialized = disclose(true);
+}
+
+// Add an oracle to the authorized whitelist. Admin only.
+export circuit add_oracle(oracle_address: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(caller == admin, "Unauthorized: caller is not admin");
+    oracles.insert(disclose(oracle_address), true);
+    oracle_count.increment(1);
+}
+
+// Remove an oracle from the whitelist. Admin only.
+// Uses Map.remove() so the key no longer exists and is_authorized() fails.
+export circuit remove_oracle(oracle_address: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(caller == admin, "Unauthorized: caller is not admin");
+    oracles.remove(disclose(oracle_address));
+    oracle_count.decrement(1);
+}
+
+// Check if an address is an authorized oracle.
+// Returns true if registered, false otherwise (including after removal).
+export circuit is_authorized(oracle_address: Bytes<32>): Boolean {
+    return oracles.member(disclose(oracle_address));
 }
 
 // Store a behavioral reputation attestation.
 //
-// Called by an authorized oracle. Only the input_hash (cryptographic
-// commitment to the scoring inputs) is written to the public ledger.
-// The score is passed as private_score() witness — never stored.
+// Called by an authorized oracle (verified against the whitelist above).
+// Only the input_hash (cryptographic commitment to the scoring inputs) and
+// a timestamp are written to the public ledger. The score is never stored.
 export circuit store_attestation(
     wallet: Bytes<32>,
+    category: Bytes<16>,
     input_hash: Bytes<32>,
     timestamp: Uint<64>
 ): [] {
-    // Oracle authorization via private witness
-    const oracle_addr = oracle_witness_address();
-    assert(oracle_addr == oracle_addr, "Oracle required");
+    const caller = caller_address();
+    assert(is_authorized(caller), "Unauthorized: caller is not an authorized oracle");
 
-    // Write ONLY the cryptographic commitment (hash) — not the score
-    attestation_hashes.insert(disclose(wallet), disclose(input_hash));
-    attestation_timestamps.insert(disclose(wallet), disclose(timestamp));
+    const key = WalletCategory { subject: wallet, category: category };
 
-    // Increment category count (safe public metadata)
-    if (category_count.member(disclose(wallet))) {
-        const existing_count = category_count.lookup(disclose(wallet));
-        category_count.insert(disclose(wallet), (existing_count + (1 as Uint<8>)) as Uint<8>);
-    } else {
-        category_count.insert(disclose(wallet), 1 as Uint<8>);
+    // Increment the distinct-category counter only on a brand-new category.
+    if (!attestation_hashes.member(disclose(key))) {
+        if (category_count.member(disclose(wallet))) {
+            const current = category_count.lookup(disclose(wallet));
+            category_count.insert(disclose(wallet), (current + (1 as Uint<8>)) as Uint<8>);
+        } else {
+            category_count.insert(disclose(wallet), 1 as Uint<8>);
+        }
     }
 
+    // Write ONLY the cryptographic commitment (hash) — not the score.
+    attestation_hashes.insert(disclose(key), disclose(input_hash));
+    attestation_timestamps.insert(disclose(key), disclose(timestamp));
     attestation_count.increment(1);
 }
 
@@ -96,34 +142,41 @@ export circuit store_attestation(
 //
 // Returns TRUE if private_score() > threshold, FALSE otherwise.
 //
-// Revealed: ONLY the Boolean result (YES / NO).
+// Gate: an attestation MUST exist for (wallet, category) before a claim can
+// be made. Without this, anyone could generate a proof for a category they
+// were never attested in.
+//
+// Revealed:  ONLY the Boolean result (YES / NO).
 // Concealed: the actual score, all behavioral data, identity — everything.
 //
 // Example: "My trust score exceeds 70"
 //   → Proves YES without revealing the score is 83.
-//
-// This is behavioral trust proved without behavioral data exposed.
-// Only possible on Midnight.
-export circuit verify_claim(threshold: Uint<8>): Boolean {
-    // Private score via witness — never touches the ledger
+export circuit verify_claim(
+    wallet: Bytes<32>,
+    category: Bytes<16>,
+    threshold: Uint<8>
+): Boolean {
+    const key = WalletCategory { subject: wallet, category: category };
+    assert(attestation_hashes.member(disclose(key)), "No attestation for wallet/category");
+
     const score = private_score();
-    // disclose() explicitly declares we intend to reveal the Boolean result only.
-    // The score itself remains private — only YES/NO is disclosed.
     return disclose(score > threshold);
 }
 
 // Get the input hash for independent oracle verification.
 // Anyone with original inputs can recompute SHA-256 and verify integrity.
-export circuit get_attestation_hash(wallet: Bytes<32>): Bytes<32> {
-    return attestation_hashes.lookup(disclose(wallet));
+export circuit get_attestation_hash(wallet: Bytes<32>, category: Bytes<16>): Bytes<32> {
+    const key = WalletCategory { subject: wallet, category: category };
+    return attestation_hashes.lookup(disclose(key));
 }
 
-// Get the timestamp of the last attestation for a wallet.
-export circuit get_attestation_timestamp(wallet: Bytes<32>): Uint<64> {
-    return attestation_timestamps.lookup(disclose(wallet));
+// Get the timestamp of the last attestation for a (wallet, category) pair.
+export circuit get_attestation_timestamp(wallet: Bytes<32>, category: Bytes<16>): Uint<64> {
+    const key = WalletCategory { subject: wallet, category: category };
+    return attestation_timestamps.lookup(disclose(key));
 }
 
-// Get how many attestation categories a wallet holds.
+// Get how many distinct attestation categories a wallet holds.
 export circuit get_category_count(wallet: Bytes<32>): Uint<8> {
     if (category_count.member(disclose(wallet))) {
         return category_count.lookup(disclose(wallet));
@@ -132,7 +185,7 @@ export circuit get_category_count(wallet: Bytes<32>): Uint<8> {
     }
 }
 
-// Transfer admin. Admin only.
+// Transfer admin to a new address. Admin only.
 export circuit transfer_admin(new_admin: Bytes<32>): [] {
     const caller = caller_address();
     assert(caller == admin, "Unauthorized: caller is not admin");

@@ -71,14 +71,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('init',
                                      'argument 1 (as invoked from Typescript)',
-                                     'oracle_registry.compact line 33 char 1',
+                                     'oracle_registry.compact line 39 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(new_admin_0.buffer instanceof ArrayBuffer && new_admin_0.BYTES_PER_ELEMENT === 1 && new_admin_0.length === 32)) {
           __compactRuntime.typeError('init',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'oracle_registry.compact line 33 char 1',
+                                     'oracle_registry.compact line 39 char 1',
                                      'Bytes<32>',
                                      new_admin_0)
         }
@@ -105,14 +105,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('add_oracle',
                                      'argument 1 (as invoked from Typescript)',
-                                     'oracle_registry.compact line 40 char 1',
+                                     'oracle_registry.compact line 46 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(oracle_address_0.buffer instanceof ArrayBuffer && oracle_address_0.BYTES_PER_ELEMENT === 1 && oracle_address_0.length === 32)) {
           __compactRuntime.typeError('add_oracle',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'oracle_registry.compact line 40 char 1',
+                                     'oracle_registry.compact line 46 char 1',
                                      'Bytes<32>',
                                      oracle_address_0)
         }
@@ -141,14 +141,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('remove_oracle',
                                      'argument 1 (as invoked from Typescript)',
-                                     'oracle_registry.compact line 48 char 1',
+                                     'oracle_registry.compact line 55 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(oracle_address_0.buffer instanceof ArrayBuffer && oracle_address_0.BYTES_PER_ELEMENT === 1 && oracle_address_0.length === 32)) {
           __compactRuntime.typeError('remove_oracle',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'oracle_registry.compact line 48 char 1',
+                                     'oracle_registry.compact line 55 char 1',
                                      'Bytes<32>',
                                      oracle_address_0)
         }
@@ -177,14 +177,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('is_authorized',
                                      'argument 1 (as invoked from Typescript)',
-                                     'oracle_registry.compact line 57 char 1',
+                                     'oracle_registry.compact line 64 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(oracle_address_0.buffer instanceof ArrayBuffer && oracle_address_0.BYTES_PER_ELEMENT === 1 && oracle_address_0.length === 32)) {
           __compactRuntime.typeError('is_authorized',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'oracle_registry.compact line 57 char 1',
+                                     'oracle_registry.compact line 64 char 1',
                                      'Bytes<32>',
                                      oracle_address_0)
         }
@@ -213,14 +213,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('transfer_admin',
                                      'argument 1 (as invoked from Typescript)',
-                                     'oracle_registry.compact line 62 char 1',
+                                     'oracle_registry.compact line 69 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(new_admin_0.buffer instanceof ArrayBuffer && new_admin_0.BYTES_PER_ELEMENT === 1 && new_admin_0.length === 32)) {
           __compactRuntime.typeError('transfer_admin',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'oracle_registry.compact line 62 char 1',
+                                     'oracle_registry.compact line 69 char 1',
                                      'Bytes<32>',
                                      new_admin_0)
         }
@@ -347,7 +347,7 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('caller_address',
                                  'return value',
-                                 'oracle_registry.compact line 28 char 1',
+                                 'oracle_registry.compact line 34 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
@@ -472,10 +472,7 @@ export class Contract {
                                        { push: { storage: false,
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(oracle_address_0),
                                                                                               alignment: _descriptor_0.alignment() }).encode() } },
-                                       { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(false),
-                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
-                                       { ins: { cached: false, n: 1 } },
+                                       { rem: { cached: false } },
                                        { ins: { cached: true, n: 1 } }]);
     const tmp_0 = 1n;
     __compactRuntime.queryLedgerState(context,
@@ -645,7 +642,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('member',
                                      'argument 1',
-                                     'oracle_registry.compact line 22 char 1',
+                                     'oracle_registry.compact line 28 char 1',
                                      'Bytes<32>',
                                      key_0)
         }
@@ -674,7 +671,7 @@ export function ledger(stateOrChargedState) {
         if (!(key_0.buffer instanceof ArrayBuffer && key_0.BYTES_PER_ELEMENT === 1 && key_0.length === 32)) {
           __compactRuntime.typeError('lookup',
                                      'argument 1',
-                                     'oracle_registry.compact line 22 char 1',
+                                     'oracle_registry.compact line 28 char 1',
                                      'Bytes<32>',
                                      key_0)
         }

@@ -14,9 +14,21 @@
             "type-name": "Bytes",
             "length": 32
           }
-        },
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "add_oracle",
+      "pure": false,
+      "proof": true,
+      "arguments": [
         {
-          "name": "registry_address",
+          "name": "oracle_address",
           "type": {
             "type-name": "Bytes",
             "length": 32
@@ -30,6 +42,42 @@
       }
     },
     {
+      "name": "remove_oracle",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "oracle_address",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "is_authorized",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "oracle_address",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
       "name": "store_attestation",
       "pure": false,
       "proof": true,
@@ -39,6 +87,13 @@
           "type": {
             "type-name": "Bytes",
             "length": 32
+          }
+        },
+        {
+          "name": "category",
+          "type": {
+            "type-name": "Bytes",
+            "length": 16
           }
         },
         {
@@ -65,8 +120,22 @@
     {
       "name": "verify_claim",
       "pure": false,
-      "proof": false,
+      "proof": true,
       "arguments": [
+        {
+          "name": "wallet",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "category",
+          "type": {
+            "type-name": "Bytes",
+            "length": 16
+          }
+        },
         {
           "name": "threshold",
           "type": {
@@ -90,6 +159,13 @@
             "type-name": "Bytes",
             "length": 32
           }
+        },
+        {
+          "name": "category",
+          "type": {
+            "type-name": "Bytes",
+            "length": 16
+          }
         }
       ],
       "result-type": {
@@ -107,6 +183,13 @@
           "type": {
             "type-name": "Bytes",
             "length": 32
+          }
+        },
+        {
+          "name": "category",
+          "type": {
+            "type-name": "Bytes",
+            "length": 16
           }
         }
       ],
@@ -155,15 +238,6 @@
   ],
   "witnesses": [
     {
-      "name": "oracle_witness_address",
-      "arguments": [
-      ],
-      "result type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
       "name": "caller_address",
       "arguments": [
       ],
@@ -196,18 +270,8 @@
       }
     },
     {
-      "name": "oracle_registry_address",
-      "index": 1,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
       "name": "initialized",
-      "index": 2,
+      "index": 1,
       "exported": true,
       "storage": "Cell",
       "type": {
@@ -215,19 +279,54 @@
       }
     },
     {
-      "name": "attestation_count",
-      "index": 3,
+      "name": "oracle_count",
+      "index": 2,
       "exported": true,
       "storage": "Counter"
     },
     {
-      "name": "attestation_hashes",
-      "index": 4,
+      "name": "oracles",
+      "index": 3,
       "exported": true,
       "storage": "Map",
       "key": {
         "type-name": "Bytes",
         "length": 32
+      },
+      "value": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "attestation_count",
+      "index": 4,
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "attestation_hashes",
+      "index": 5,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Struct",
+        "name": "WalletCategory",
+        "elements": [
+          {
+            "name": "subject",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "category",
+            "type": {
+              "type-name": "Bytes",
+              "length": 16
+            }
+          }
+        ]
       },
       "value": {
         "type-name": "Bytes",
@@ -236,12 +335,28 @@
     },
     {
       "name": "attestation_timestamps",
-      "index": 5,
+      "index": 6,
       "exported": true,
       "storage": "Map",
       "key": {
-        "type-name": "Bytes",
-        "length": 32
+        "type-name": "Struct",
+        "name": "WalletCategory",
+        "elements": [
+          {
+            "name": "subject",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "category",
+            "type": {
+              "type-name": "Bytes",
+              "length": 16
+            }
+          }
+        ]
       },
       "value": {
         "type-name": "Uint",
@@ -250,7 +365,7 @@
     },
     {
       "name": "category_count",
-      "index": 6,
+      "index": 7,
       "exported": true,
       "storage": "Map",
       "key": {

@@ -6,13 +6,19 @@ import CompactStandardLibrary;
 // Oracle Registry — Verities Protocol
 //
 // Maintains an on-chain whitelist of authorized reputation attestation
-// providers (oracles). Only addresses registered here can write trust
-// attestations to the trust_attestation contract.
+// providers (oracles). Only addresses registered here are trusted issuance
+// authorities for behavioral trust attestations.
 //
 // Privacy model:
 //   Public ledger  : oracle_count, admin, oracles map
 //   Private witness: caller_address() — compared against admin without
 //                    re-storing or disclosing to ledger
+//
+// Security notes:
+//   - remove_oracle() truly revokes an oracle via Map.remove() so that
+//     is_authorized() (a membership check) can no longer succeed.
+//     (Legacy versions wrote `false` into the map, leaving the key present
+//     and therefore still "member" — a bypass.)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Public ledger state ──────────────────────────────────────────────────────
@@ -45,15 +51,16 @@ export circuit add_oracle(oracle_address: Bytes<32>): [] {
 }
 
 // Remove an oracle from the whitelist. Admin only.
+// Uses Map.remove() so the key no longer exists and is_authorized() fails.
 export circuit remove_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
     assert(caller == admin, "Unauthorized: caller is not admin");
-    oracles.insert(disclose(oracle_address), false);
+    oracles.remove(disclose(oracle_address));
     oracle_count.decrement(1);
 }
 
 // Check if an address is an authorized oracle.
-// Returns true if registered, false otherwise.
+// Returns true if registered, false otherwise (including after removal).
 export circuit is_authorized(oracle_address: Bytes<32>): Boolean {
     return oracles.member(disclose(oracle_address));
 }
