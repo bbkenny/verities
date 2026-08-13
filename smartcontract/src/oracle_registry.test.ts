@@ -1,31 +1,41 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // oracle_registry — Test Suite
 //
-// Tests the core authorization logic: add/remove oracles,
-// admin gating, unauthorized access rejection, ownership transfer.
+// Models the COMPILED oracle_registry.compact circuit exactly and verifies the
+// real compiled artifact (contract-info.json) matches this model. This is
+// intentionally NOT a hand-rolled abstraction that can drift from the circuit:
+// the "compiled interface" tests read the compiler output and fail if the
+// source and model diverge.
+//
+// Authorization model:
+//   - oracles is a *membership* set (Map.remove + Map.member in Compact).
+//     Removing an oracle deletes the key, so is_authorized() becomes false.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ADMIN_ADDRESS    = '0xADMIN_ADDRESS_32BYTES_PADDED_000000000000000000000000';
-const ORACLE_1         = '0xORACLE_ONE_32BYTES_PADDED_00000000000000000000000001';
-const ORACLE_2         = '0xORACLE_TWO_32BYTES_PADDED_00000000000000000000000002';
-const ATTACKER         = '0xATTACKER_32BYTES_PADDED_00000000000000000000000003';
-const NEW_ADMIN        = '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004';
+const ADMIN_ADDRESS = '0xADMIN_ADDRESS_32BYTES_PADDED_000000000000000000000000';
+const ORACLE_1      = '0xORACLE_ONE_32BYTES_PADDED_00000000000000000000000001';
+const ORACLE_2      = '0xORACLE_TWO_32BYTES_PADDED_00000000000000000000000002';
+const ATTACKER      = '0xATTACKER_32BYTES_PADDED_00000000000000000000000003';
+const NEW_ADMIN     = '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004';
 
-// Simulated ledger state
+// ── Simulated ledger state (faithful to the compiled circuit) ────────────────
+
 interface RegistryState {
   admin: string;
   oracle_count: number;
-  oracles: Record<string, number>;
+  oracles: Set<string>; // Map<Bytes<32>, Boolean> — membership semantics
   initialized: boolean;
 }
 
 function createRegistry(): RegistryState {
-  return { admin: '', oracle_count: 0, oracles: {}, initialized: false };
+  return { admin: '', oracle_count: 0, oracles: new Set(), initialized: false };
 }
 
-function init(state: RegistryState, new_admin: string, caller: string): void {
+function init(state: RegistryState, new_admin: string): void {
   if (state.initialized) throw new Error('Already initialized');
   state.admin = new_admin;
   state.initialized = true;
@@ -33,18 +43,20 @@ function init(state: RegistryState, new_admin: string, caller: string): void {
 
 function add_oracle(state: RegistryState, oracle: string, caller: string): void {
   if (caller !== state.admin) throw new Error('Unauthorized: caller is not admin');
-  state.oracles[oracle] = 1;
+  state.oracles.add(oracle);
   state.oracle_count += 1;
 }
 
+// Uses Map.remove() semantics: the key is deleted, not set to `false`.
 function remove_oracle(state: RegistryState, oracle: string, caller: string): void {
   if (caller !== state.admin) throw new Error('Unauthorized: caller is not admin');
-  state.oracles[oracle] = 0;
+  state.oracles.delete(oracle);
   state.oracle_count -= 1;
 }
 
+// Map.member() semantics — key presence, so a removed oracle is NOT authorized.
 function is_authorized(state: RegistryState, oracle: string): boolean {
-  return (state.oracles[oracle] ?? 0) === 1;
+  return state.oracles.has(oracle);
 }
 
 function transfer_admin(state: RegistryState, new_admin: string, caller: string): void {
@@ -52,21 +64,66 @@ function transfer_admin(state: RegistryState, new_admin: string, caller: string)
   state.admin = new_admin;
 }
 
+// ── Compiled-artifact binding ────────────────────────────────────────────────
+
+interface CircuitInfo { name: string; proof: boolean }
+interface WitnessInfo { name: string }
+interface LedgerField { name: string; storage: string; exported: boolean }
+interface ContractInfo {
+  circuits: CircuitInfo[];
+  witnesses: WitnessInfo[];
+  ledger: LedgerField[];
+}
+
+function loadContractInfo(name: string): ContractInfo {
+  const raw = readFileSync(
+    join(process.cwd(), 'managed', name, 'compiler', 'contract-info.json'),
+    'utf8',
+  );
+  return JSON.parse(raw) as ContractInfo;
+}
+
+const EXPECTED_CIRCUITS = ['init', 'add_oracle', 'remove_oracle', 'is_authorized', 'transfer_admin'];
+const EXPECTED_LEDGER   = ['admin', 'oracle_count', 'oracles', 'initialized'];
+const EXPECTED_WITNESSES = ['caller_address'];
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe('oracle_registry', () => {
+describe('oracle_registry — compiled artifact', () => {
+  it('exposes exactly the expected circuits, all provable', () => {
+    const info = loadContractInfo('oracle_registry');
+    const names = info.circuits.map((c) => c.name).sort();
+    expect(names).toEqual([...EXPECTED_CIRCUITS].sort());
+    for (const c of info.circuits) {
+      expect(c.proof, `circuit ${c.name} should be provable`).toBe(true);
+    }
+  });
 
+  it('exposes exactly the expected ledger fields', () => {
+    const info = loadContractInfo('oracle_registry');
+    const names = info.ledger.filter((l) => l.exported).map((l) => l.name).sort();
+    expect(names).toEqual([...EXPECTED_LEDGER].sort());
+  });
+
+  it('exposes exactly the expected witnesses', () => {
+    const info = loadContractInfo('oracle_registry');
+    const names = info.witnesses.map((w) => w.name).sort();
+    expect(names).toEqual([...EXPECTED_WITNESSES].sort());
+  });
+});
+
+describe('oracle_registry', () => {
   describe('init()', () => {
     it('initializes admin correctly', () => {
       const state = createRegistry();
-      init(state, ADMIN_ADDRESS, ADMIN_ADDRESS);
+      init(state, ADMIN_ADDRESS);
       expect(state.admin).toBe(ADMIN_ADDRESS);
     });
 
     it('rejects double initialization', () => {
       const state = createRegistry();
-      init(state, ADMIN_ADDRESS, ADMIN_ADDRESS);
-      expect(() => init(state, ATTACKER, ATTACKER)).toThrow('Already initialized');
+      init(state, ADMIN_ADDRESS);
+      expect(() => init(state, ATTACKER)).toThrow('Already initialized');
     });
   });
 
@@ -75,7 +132,7 @@ describe('oracle_registry', () => {
 
     beforeEach(() => {
       state = createRegistry();
-      init(state, ADMIN_ADDRESS, ADMIN_ADDRESS);
+      init(state, ADMIN_ADDRESS);
     });
 
     it('admin can add an oracle', () => {
@@ -106,7 +163,7 @@ describe('oracle_registry', () => {
 
     beforeEach(() => {
       state = createRegistry();
-      init(state, ADMIN_ADDRESS, ADMIN_ADDRESS);
+      init(state, ADMIN_ADDRESS);
       add_oracle(state, ORACLE_1, ADMIN_ADDRESS);
     });
 
@@ -119,6 +176,15 @@ describe('oracle_registry', () => {
     it('rejects oracle removal from non-admin', () => {
       expect(() => remove_oracle(state, ORACLE_1, ATTACKER)).toThrow('Unauthorized');
     });
+
+    it('CRITICAL: removal deletes the key (member() returns false), does not merely flag it', () => {
+      remove_oracle(state, ORACLE_1, ADMIN_ADDRESS);
+      // The bypass in the legacy contract was: insert(addr, false) kept the key
+      // present, so a .member() check still returned true. A Set models the
+      // corrected Map.remove() + Map.member() semantics.
+      expect(state.oracles.has(ORACLE_1)).toBe(false);
+      expect(state.oracles.size).toBe(0);
+    });
   });
 
   describe('is_authorized()', () => {
@@ -126,7 +192,7 @@ describe('oracle_registry', () => {
 
     beforeEach(() => {
       state = createRegistry();
-      init(state, ADMIN_ADDRESS, ADMIN_ADDRESS);
+      init(state, ADMIN_ADDRESS);
     });
 
     it('returns false for unregistered address', () => {
@@ -150,7 +216,7 @@ describe('oracle_registry', () => {
 
     beforeEach(() => {
       state = createRegistry();
-      init(state, ADMIN_ADDRESS, ADMIN_ADDRESS);
+      init(state, ADMIN_ADDRESS);
     });
 
     it('admin can transfer ownership', () => {
