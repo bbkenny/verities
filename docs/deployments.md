@@ -1,6 +1,6 @@
 # Verities — Deployment Log
 
-All contract deployments are recorded here automatically by `deploy.sh`.
+Contract deployment addresses are recorded here manually after each deployment.
 
 ---
 
@@ -11,4 +11,6 @@ All contract deployments are recorded here automatically by `deploy.sh`.
 | oracle_registry | Midnight Preprod | `[pending]` | — |
 | trust_attestation | Midnight Preprod | `[pending]` | — |
 
-> This file is updated automatically by `bash deploy.sh preprod` or `bash deploy.sh preview`.
+> Deployment is not yet complete. See README → Deployment for the wallet +
+> proof-server prerequisites, and `deploy.sh` (which compiles for real and
+> fails loudly until a signer is configured).

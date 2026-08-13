@@ -2,32 +2,38 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Verities Protocol — Deployment Script
 #
-# Deploys oracle_registry and trust_attestation contracts to Midnight
-# Preview or Preprod networks.
+# Compiles both Compact contracts and (if a wallet + proof server are
+# available) deploys them to a Midnight network.
 #
 # Usage:
 #   bash deploy.sh preprod
 #   bash deploy.sh preview
+#
+# Honesty note:
+#   A real end-to-end deploy requires the Midnight wallet SDK (Lace or the
+#   CLI wallet) and a running proof server. Those packages are published to a
+#   private registry and are NOT installable via the public npm registry that
+#   this repository's package.json uses, so this script does NOT fake a deploy.
+#   It compiles the contracts for real, then fails loudly if no signer is
+#   configured, rather than printing a bogus "PENDING_DEPLOYMENT" success.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
 NETWORK="${1:-preprod}"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-DEPLOY_LOG="docs/deployments.md"
+COMPACT_BIN="${COMPACT_BIN:-compact}"
 
 echo ""
 echo "🌙 Verities Protocol — Deployment"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Network  : $NETWORK"
-echo "  Timestamp: $TIMESTAMP"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Network: $NETWORK"
 echo ""
 
 # ── Pre-flight checks ────────────────────────────────────────────────────────
 echo "▶ Running pre-flight checks..."
 
-if ! command -v compact &> /dev/null; then
-  echo "❌ Error: 'compact' compiler not found."
+if ! command -v "$COMPACT_BIN" &> /dev/null; then
+  echo "❌ Error: '$COMPACT_BIN' compiler not found."
   echo "   Install the Midnight toolchain: https://docs.midnight.network/develop/tutorial/using-counter/installation"
   exit 1
 fi
@@ -43,102 +49,52 @@ if [ "$NODE_VERSION" -lt 22 ]; then
   exit 1
 fi
 
-echo "✅ compact: $(compact --version 2>/dev/null || echo 'installed')"
+echo "✅ compact: $($COMPACT_BIN --version 2>/dev/null || echo 'installed')"
 echo "✅ node: $(node --version)"
 echo ""
 
-# ── Compile contracts ─────────────────────────────────────────────────────────
+# ── Compile contracts ────────────────────────────────────────────────────────
 echo "▶ Compiling contracts..."
 
 echo "  Compiling oracle_registry.compact..."
-compact compile src/oracle_registry.compact
+"$COMPACT_BIN" src/oracle_registry.compact managed/oracle_registry
 echo "  ✅ oracle_registry compiled"
 
 echo "  Compiling trust_attestation.compact..."
-compact compile src/trust_attestation.compact
+"$COMPACT_BIN" src/trust_attestation.compact managed/trust_attestation
 echo "  ✅ trust_attestation compiled"
 
 echo ""
 echo "  Generated circuits:"
-ls managed/ 2>/dev/null | sed 's/^/    /'
+find managed -name '*.zkir' | sed 's/^/    /'
 echo ""
 
-# ── Deploy contracts ──────────────────────────────────────────────────────────
+# ── Deploy (only if a signer is configured) ─────────────────────────────────
+case "$NETWORK" in
+  preprod|preview) ;;
+  *)
+    echo "❌ Unknown network: $NETWORK. Use 'preprod' or 'preview'."
+    exit 1
+    ;;
+esac
+
 echo "▶ Deploying to Midnight $NETWORK..."
 
-# Network endpoint
-if [ "$NETWORK" = "preprod" ]; then
-  NODE_URL="https://rpc.midnight.network/preprod"
-  INDEXER_URL="https://indexer.midnight.network/preprod/api/v1/graphql"
-  PROOF_SERVER_URL="http://localhost:6300"
-elif [ "$NETWORK" = "preview" ]; then
-  NODE_URL="https://rpc.midnight.network/preview"
-  INDEXER_URL="https://indexer.midnight.network/preview/api/v1/graphql"
-  PROOF_SERVER_URL="http://localhost:6300"
-else
-  echo "❌ Unknown network: $NETWORK. Use 'preprod' or 'preview'."
+if [ -z "${MIDNIGHT_WALLET_SEED:-}" ]; then
+  echo "❌ No Midnight wallet configured (MIDNIGHT_WALLET_SEED is unset)."
+  echo ""
+  echo "   A real deployment needs:"
+  echo "     1. A Midnight wallet (Lace browser extension or CLI wallet) funded with"
+  echo "        tNIGHT / tDUST from the faucet for the $NETWORK network."
+  echo "     2. A running local proof server (e.g. on http://localhost:6300)."
+  echo "     3. The wallet SDK, which is published to a private registry and is not"
+  echo "        installable from the public npm registry used by package.json."
+  echo ""
+  echo "   Follow the manual steps in README.md → Deployment, then record the"
+  echo "   resulting contract addresses in docs/deployments.md."
   exit 1
 fi
 
-echo "  Node URL   : $NODE_URL"
-echo "  Indexer URL: $INDEXER_URL"
-echo ""
-
-# Deploy oracle_registry first (trust_attestation depends on its address)
-echo "  Deploying oracle_registry..."
-REGISTRY_ADDRESS=$(node -e "
-  const { deploy } = require('@midnight-ntwrk/midnight-js-contracts');
-  deploy({
-    contractName: 'oracle_registry',
-    networkId: '$NETWORK',
-    nodeUrl: '$NODE_URL',
-    indexerUrl: '$INDEXER_URL',
-    proofServerUrl: '$PROOF_SERVER_URL',
-  }).then(addr => { console.log(addr); process.exit(0); })
-    .catch(e => { console.error(e); process.exit(1); });
-" 2>/dev/null || echo "PENDING_DEPLOYMENT")
-
-echo "  📍 oracle_registry address: $REGISTRY_ADDRESS"
-echo ""
-
-# Deploy trust_attestation with registry address
-echo "  Deploying trust_attestation..."
-ATTESTATION_ADDRESS=$(node -e "
-  const { deploy } = require('@midnight-ntwrk/midnight-js-contracts');
-  deploy({
-    contractName: 'trust_attestation',
-    networkId: '$NETWORK',
-    initParams: { oracle_registry_address: '$REGISTRY_ADDRESS' },
-    nodeUrl: '$NODE_URL',
-    indexerUrl: '$INDEXER_URL',
-    proofServerUrl: '$PROOF_SERVER_URL',
-  }).then(addr => { console.log(addr); process.exit(0); })
-    .catch(e => { console.error(e); process.exit(1); });
-" 2>/dev/null || echo "PENDING_DEPLOYMENT")
-
-echo "  📍 trust_attestation address: $ATTESTATION_ADDRESS"
-echo ""
-
-# ── Update deployment log ────────────────────────────────────────────────────
-mkdir -p docs
-
-cat >> "$DEPLOY_LOG" << EOF
-
-## Deployment — $TIMESTAMP
-
-| Contract            | Network   | Address                       |
-|---------------------|-----------|-------------------------------|
-| oracle_registry     | $NETWORK  | \`$REGISTRY_ADDRESS\`         |
-| trust_attestation   | $NETWORK  | \`$ATTESTATION_ADDRESS\`      |
-
-EOF
-
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Deployment complete!"
-echo ""
-echo "  oracle_registry   → $REGISTRY_ADDRESS"
-echo "  trust_attestation → $ATTESTATION_ADDRESS"
-echo ""
-echo "  Log saved to $DEPLOY_LOG"
-echo "  Update README.md with these addresses."
-echo ""
+echo "  (Deployment via wallet SDK not scripted in this repository — see README.)"
+echo "  If you reached this point, wire in your wallet SDK and signer here."
+exit 1

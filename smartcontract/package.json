@@ -4,9 +4,9 @@
   "description": "Verities Protocol — Compact smart contracts for privacy-first behavioral reputation on Midnight",
   "private": true,
   "scripts": {
-    "compile": "compact compile src/oracle_registry.compact && compact compile src/trust_attestation.compact",
-    "compile:registry": "compact compile src/oracle_registry.compact",
-    "compile:attestation": "compact compile src/trust_attestation.compact",
+    "compile": "compactc src/oracle_registry.compact managed/oracle_registry && compactc src/trust_attestation.compact managed/trust_attestation",
+    "compile:registry": "compactc src/oracle_registry.compact managed/oracle_registry",
+    "compile:attestation": "compactc src/trust_attestation.compact managed/trust_attestation",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

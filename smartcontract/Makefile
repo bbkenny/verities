@@ -4,7 +4,7 @@
 # Verities Protocol — Makefile
 # ─────────────────────────────────────────────────────────────────────────────
 
-COMPACT    = compact
+COMPACT    = compactc
 NODE       = node
 NPM        = npm
 
@@ -14,21 +14,21 @@ all: compile test
 ## Compile both Compact contracts to ZK circuits
 compile:
 	@echo "⚙️  Compiling oracle_registry.compact..."
-	$(COMPACT) compile src/oracle_registry.compact
+	$(COMPACT) src/oracle_registry.compact managed/oracle_registry
 	@echo ""
 	@echo "⚙️  Compiling trust_attestation.compact..."
-	$(COMPACT) compile src/trust_attestation.compact
+	$(COMPACT) src/trust_attestation.compact managed/trust_attestation
 	@echo ""
 	@echo "✅ Compilation complete. Circuits in managed/"
 	@ls -la managed/ 2>/dev/null || echo "  (managed/ will appear after first compile)"
 
 ## Compile only oracle_registry
 compile-registry:
-	$(COMPACT) compile src/oracle_registry.compact
+	$(COMPACT) src/oracle_registry.compact managed/oracle_registry
 
 ## Compile only trust_attestation
 compile-attestation:
-	$(COMPACT) compile src/trust_attestation.compact
+	$(COMPACT) src/trust_attestation.compact managed/trust_attestation
 
 ## Run full test suite
 test:

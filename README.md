@@ -136,14 +136,13 @@ This is the foundational concept of Compact development. Verities is designed ar
 
 Data stored in `export ledger` is **visible to all network participants** on the public blockchain.
 
-In Verities, only the following is public:
+In Verities, only the following is public (across both contracts):
+- `admin` — the contract administrator address
+- `oracle_count` / `oracles` — a self-contained on-chain whitelist of authorized attestation providers (membership map)
 - `attestation_count` — total number of attestations stored (a counter)
-- `oracle_registry_address` — address of the oracle registry contract
-- `attestation_hashes` — SHA-256 hash of the input data used to compute each score
-- `attestation_timestamps` — when each attestation was issued
-- `category_count` — how many attestation categories a wallet holds (not which ones)
-- `oracle_count` — how many oracles are registered
-- `oracles` — which addresses are authorized providers (Map of authorized registrants)
+- `attestation_hashes` — SHA-256 commitment of the scoring inputs, keyed by `(wallet, category)`
+- `attestation_timestamps` — when each attestation was issued, keyed by `(wallet, category)`
+- `category_count` — how many *distinct* categories a wallet holds (a count, not which ones)
 
 None of this reveals scores, behavioral history, wallet balances, or counterparties.
 
@@ -152,22 +151,21 @@ None of this reveals scores, behavioral history, wallet balances, or counterpart
 Data supplied via `witness` functions is **off-chain private input** — it exists only inside the ZK circuit computation and **never touches the public ledger**.
 
 In Verities, the following is private:
-- `private_score(wallet, category)` — the actual behavioral score (0-100). Supplied by the oracle as a private witness. Used *only* for comparison against a threshold in `verify_claim()`. Never stored, never disclosed.
-- `oracle_witness_address()` — the oracle's identity. Used for authorization. Not stored in public state.
-- `caller_address()` — the admin's identity. Used for admin operations. Not stored in public state.
+- `private_score()` — the actual behavioral score (0-100). Supplied by the prover as a private witness. Used *only* for comparison against a threshold in `verify_claim()`. Never stored, never disclosed.
+- `caller_address()` — the caller's identity. Used for admin/oracle authorization. Not stored in public state.
 
 ### The `disclose()` Gate
 
 In Compact, any value that originates from a witness (private input) is considered **witness-tainted**. You cannot move a witness-tainted value to the public ledger without explicitly calling `disclose()`.
 
 ```compact
-// This writes the oracle_address to the public ledger — DELIBERATE
-oracles[disclose(oracle_address)] = disclose(1 as Uint<8>);
+// Writing the oracle_address to the whitelist — DELIBERATE disclosure
+oracles.insert(disclose(oracle_address), true);
 
 // This comparison stays PRIVATE — score never enters the ledger
-const score = private_score(wallet, category);  // private witness
-const result = score > threshold;               // private computation
-return result;                                  // only boolean returned
+const score = private_score();   // private witness
+const result = score > threshold; // private computation
+return disclose(result);          // only the boolean is disclosed
 ```
 
 **Every `disclose()` call in Verities is intentional and documented in the contract source.**
@@ -178,17 +176,17 @@ return result;                                  // only boolean returned
 
 ### Contract 1: `oracle_registry.compact`
 
-Maintains the on-chain whitelist of authorized attestation providers.
+A standalone, self-contained whitelist of authorized attestation providers.
 
 | Function | Visibility | Parameters | Returns | Description |
 |---|---|---|---|---|
 | `init` | `export circuit` | `new_admin: Bytes<32>` | `[]` | Initialize registry with first admin. One-time only. |
 | `add_oracle` | `export circuit` | `oracle_address: Bytes<32>` | `[]` | Add an oracle to the whitelist. Admin only (private witness). |
-| `remove_oracle` | `export circuit` | `oracle_address: Bytes<32>` | `[]` | Remove an oracle from the whitelist. Admin only. |
-| `is_authorized` | `export circuit` | `oracle_address: Bytes<32>` | `Boolean` | Check if an address is an authorized oracle. Cross-contract callable. |
+| `remove_oracle` | `export circuit` | `oracle_address: Bytes<32>` | `[]` | **Revoke** an oracle via `Map.remove()` — the key is deleted, so `is_authorized()` becomes false. Admin only. |
+| `is_authorized` | `export circuit` | `oracle_address: Bytes<32>` | `Boolean` | Membership check against the whitelist. |
 | `transfer_admin` | `export circuit` | `new_admin: Bytes<32>` | `[]` | Transfer admin to a new address. Admin only. |
 
-**Public ledger:** `admin`, `oracle_count`, `oracles` (Map)
+**Public ledger:** `admin`, `oracle_count`, `oracles` (Map), `initialized`
 
 **Private witnesses:** `caller_address()` — admin identity for authorization
 
@@ -198,17 +196,49 @@ The core ZK primitive of Verities. Stores attestations and enables selective dis
 
 | Function | Visibility | Parameters | Returns | Description |
 |---|---|---|---|---|
-| `init` | `export circuit` | `new_admin: Bytes<32>`, `registry_address: Bytes<32>` | `[]` | Initialize and link to oracle registry. |
-| `store_attestation` | `export circuit` | `wallet, category, input_hash, timestamp` | `[]` | Oracle stores a signed attestation. Score is private witness — never written to ledger. |
-| `verify_claim` | `export circuit` | `wallet: Bytes<32>`, `category: Bytes<16>`, `threshold: Uint<8>` | `Boolean` | **Core ZK proof.** Returns YES/NO for `score > threshold`. Score stays private. |
+| `init` | `export circuit` | `new_admin: Bytes<32>` | `[]` | Initialize with first admin. One-time only. |
+| `add_oracle` | `export circuit` | `oracle_address: Bytes<32>` | `[]` | Add an oracle to the contract's own whitelist. Admin only. |
+| `remove_oracle` | `export circuit` | `oracle_address: Bytes<32>` | `[]` | Revoke an oracle via `Map.remove()`. Admin only. |
+| `is_authorized` | `export circuit` | `oracle_address: Bytes<32>` | `Boolean` | Membership check against the contract's whitelist. |
+| `store_attestation` | `export circuit` | `wallet: Bytes<32>`, `category: Bytes<16>`, `input_hash: Bytes<32>`, `timestamp: Uint<64>` | `[]` | **Oracle-only.** Stores the SHA-256 commitment (never the score) keyed by `(wallet, category)`. Rejects non-whitelisted callers. |
+| `verify_claim` | `export circuit` | `wallet: Bytes<32>`, `category: Bytes<16>`, `threshold: Uint<8>` | `Boolean` | **Core ZK proof.** Requires an existing attestation, then returns YES/NO for `score > threshold`. Score stays private. |
 | `get_attestation_hash` | `export circuit` | `wallet: Bytes<32>`, `category: Bytes<16>` | `Bytes<32>` | Returns the input hash for independent oracle verification. |
-| `get_attestation_timestamp` | `export circuit` | `wallet: Bytes<32>`, `category: Bytes<16>` | `Uint<64>` | Returns timestamp of last attestation. |
-| `get_category_count` | `export circuit` | `wallet: Bytes<32>` | `Uint<8>` | Returns how many attestation categories a wallet holds. |
-| `transfer_admin` | `export circuit` | `new_admin: Bytes<32>` | `[]` | Transfer admin. |
+| `get_attestation_timestamp` | `export circuit` | `wallet: Bytes<32>`, `category: Bytes<16>` | `Uint<64>` | Returns timestamp of the last attestation for that pair. |
+| `get_category_count` | `export circuit` | `wallet: Bytes<32>` | `Uint<8>` | Returns how many *distinct* categories a wallet holds. |
+| `transfer_admin` | `export circuit` | `new_admin: Bytes<32>` | `[]` | Transfer admin. Admin only. |
 
-**Public ledger:** `attestation_count`, `oracle_registry_address`, `admin`, `attestation_hashes`, `attestation_timestamps`, `category_count`
+**Public ledger:** `admin`, `initialized`, `oracle_count`, `oracles`, `attestation_count`, `attestation_hashes` (struct-keyed), `attestation_timestamps` (struct-keyed), `category_count`
 
-**Private witnesses:** `oracle_witness_address()`, `caller_address()`, `private_score(wallet, category)` — **score never touches the ledger**
+**Private witnesses:** `caller_address()`, `private_score()` — **score never touches the ledger**
+
+> **Note on cross-contract calls.** The original design linked `trust_attestation` to `oracle_registry` via a cross-contract `is_authorized()` check. Compact `v0.23` / `compactc v0.31.1` does not yet implement contract types (cross-contract calls), so `trust_attestation` maintains its **own** whitelist instead. `oracle_registry.compact` remains as a standalone, reference whitelist contract. See **Security notes** below.
+
+---
+
+## Security notes
+
+Documented honestly, because the trust model matters:
+
+- **Cross-contract calls are not yet supported.** Compact `v0.23` / `compactc
+  v0.31.1` does not implement contract types (verified against the compiler
+  binary: "contract types are not yet implemented"). The original two-contract
+  design — where `trust_attestation` calls `oracle_registry.is_authorized()` —
+  cannot compile yet, so `trust_attestation` keeps its **own** oracle whitelist
+  and `oracle_registry.compact` ships as a standalone reference contract.
+
+- **Removal is real.** `remove_oracle()` uses `Map.remove()`, which deletes the
+  key. A removed oracle immediately fails `is_authorized()` (a `Map.member()`
+  check). The earlier `Map.insert(addr, false)` pattern was a bypass because the
+  key remained present.
+
+- **The score witness is not yet cryptographically bound to the stored
+  commitment.** Compact `v0.23` exposes no in-circuit hash or signature
+  primitive, so `verify_claim()` cannot recompute `hash(score)` and compare it
+  against `attestation_hashes` inside the circuit. It *does* require an
+  attestation to exist for the `(wallet, category)` pair, which stops "claims
+  without an attestation". Fully binding the score to the oracle's SHA-256
+  commitment requires a hash/signature built-in and is tracked as a post-MVP
+  hardening item.
 
 ---
 
@@ -247,12 +277,19 @@ Verities is a programmable behavioral reputation layer built on Midnight that en
 
 Follow the official Midnight installation guide:
 ```bash
-# Install the Compact compiler globally
+# Install the Compact compiler (the `compact` CLI is a version manager; it
+# downloads the `compactc` compiler binary to ~/.compact/versions/<ver>/).
 npm install -g @midnight-ntwrk/compact-compiler
 
 # Verify installation
 compact --version
 ```
+
+> The `npm run compile` / `make compile` scripts invoke `compactc` directly
+> (`compactc <source.compact> <target-dir>`). If `compactc` is not on your
+> `PATH`, it lives at `~/.compact/versions/0.31.1/x86_64-unknown-linux-musl/compactc`
+> (see `compact_troubleshooting_guide.md` in the parent workspace for the full
+> toolchain install story).
 
 ### 2. Start the Proof Server (Docker)
 
@@ -287,11 +324,11 @@ make compile
 Successful output will list:
 ```
 ⚙️  Compiling oracle_registry.compact...
-oracle_registry:
-  circuits: oracle_registry_init, add_oracle, remove_oracle, is_authorized, transfer_admin
+oracle_registry: 5 circuits (init, add_oracle, remove_oracle, is_authorized, transfer_admin)
 ⚙️  Compiling trust_attestation.compact...
-trust_attestation:
-  circuits: trust_attestation_init, store_attestation, verify_claim, get_attestation_hash ...
+trust_attestation: 10 circuits (init, add_oracle, remove_oracle, is_authorized,
+  store_attestation, verify_claim, get_attestation_hash, get_attestation_timestamp,
+  get_category_count, transfer_admin)
 ✅ Compilation complete. Circuits in managed/
 ```
 
@@ -320,24 +357,22 @@ npm run compile
 
 ### Expected Output
 
-After successful compilation, the `managed/` directory will contain:
+After successful compilation, the `managed/` directory will contain 15 circuits
+(5 in `oracle_registry`, 10 in `trust_attestation`), each with a `.zkir`
+intermediate representation plus `.prover`/`.verifier` proving keys:
+
 ```
 managed/
-├── oracle_registry/
-│   ├── oracle_registry.zkir       # ZK intermediate representation
-│   ├── oracle_registry_init.crs   # Proving key for init circuit
-│   ├── add_oracle.crs             # Proving key for add_oracle circuit
-│   ├── remove_oracle.crs
-│   ├── is_authorized.crs
-│   └── transfer_admin.crs
-└── trust_attestation/
-    ├── trust_attestation.zkir
-    ├── trust_attestation_init.crs
-    ├── store_attestation.crs      # Proving key for store_attestation
-    ├── verify_claim.crs           # Proving key for the core ZK proof
-    ├── get_attestation_hash.crs
-    ├── get_attestation_timestamp.crs
-    └── get_category_count.crs
+├── oracle_registry/            # 5 circuits
+│   ├── compiler/contract-info.json
+│   ├── contract/index.js + index.d.ts     # generated TS bindings
+│   ├── zkir/*.zkir                        # ZK intermediate representation
+│   └── keys/*.prover + *.verifier         # proving/verifying keys
+└── trust_attestation/          # 10 circuits (incl. verify_claim)
+    ├── compiler/contract-info.json
+    ├── contract/index.js + index.d.ts
+    ├── zkir/*.zkir
+    └── keys/*.prover + *.verifier
 ```
 
 ---
@@ -348,10 +383,15 @@ managed/
 
 | Contract | Network | Address |
 |---|---|---|
-| oracle_registry | Midnight Preprod | `[update after deployment]` |
-| trust_attestation | Midnight Preprod | `[update after deployment]` |
+| oracle_registry | Midnight Preprod | `[pending — not yet deployed]` |
+| trust_attestation | Midnight Preprod | `[pending — not yet deployed]` |
 
-> Screenshots of successful compile output and deployment confirmation are in [`docs/screenshots/`](docs/screenshots/).
+> A real deployment requires a funded Midnight wallet (Lace/CLI) plus a local
+> proof server. The wallet SDK is published to a private registry and is not
+> installable from the public npm registry used by `package.json`, so
+> `deploy.sh` compiles the contracts for real and then fails loudly (rather
+> than faking a deployment) if no signer is configured. Screenshots of
+> successful compile output are in [`docs/screenshots/`](docs/screenshots/).
 
 ---
 
@@ -366,10 +406,18 @@ npm test
 
 | Test Suite | Tests | What It Covers |
 |---|---|---|
-| `oracle_registry.test.ts` | 12 tests | init, add/remove oracle, auth checks, unauthorized rejection, ownership transfer |
-| `trust_attestation.test.ts` | 14 tests | attestation storage, score-never-stored property, verify_claim YES/NO, equality edge case, multi-user independence, hash queryability |
+| `oracle_registry.test.ts` | 19 tests | compiled-artifact interface check, init, add/remove oracle (with true `Map.remove()` revocation), auth checks, unauthorized rejection, ownership transfer |
+| `trust_attestation.test.ts` | 23 tests | compiled-artifact interface check, init, whitelist-gated attestation storage, score-never-stored property, verify_claim YES/NO + existence gate, distinct-category counting, multi-user independence, hash queryability |
 
-**Critical test:** `CRITICAL: score is never stored in public state` — verifies that the score value never appears in the contract's public ledger, regardless of what attestations are stored.
+**Critical tests:**
+- `CRITICAL: score is never stored in public state` — the score never appears in public ledger state.
+- `CRITICAL: non-whitelisted caller cannot store an attestation` — the oracle gate is enforced (no tautology).
+- `CRITICAL: a removed oracle can no longer store attestations` — `Map.remove()` revocation is real.
+- `CRITICAL: rejects claims without a stored attestation` — `verify_claim()` is gated on attestation existence.
+
+Each suite also reads `managed/<contract>/compiler/contract-info.json` and asserts
+the compiled circuit list, ledger fields, and witnesses match, so the tests stay
+bound to the actual compiled artifacts rather than drifting from the source.
 
 ---
 
@@ -465,7 +513,7 @@ trust scores              via zero-knowledge proofs
 - **GitHub Repository:** [https://github.com/bbkenny/verities](https://github.com/bbkenny/verities)
 - **Contract Address:** `Pending — deployment attempted, Preview RPC unavailable at submission time`
 - **Compiler:** `compactc v0.31.1` · Language: `v0.23.0` · Platform: `x86_64 Linux`
-- **Circuits Generated:** 11 total (5 oracle_registry + 6 trust_attestation)
+- **Circuits Generated:** 15 total (5 oracle_registry + 10 trust_attestation)
 
 ### 🟣 Level 1 Requirements Map
 
@@ -474,114 +522,66 @@ Each requirement mapped to the exact file, link, or screenshot that satisfies it
 | Requirement | Status | Proof |
 |---|---|---|
 | Toolchain installed (Compact compiler, Node 22, Docker) | ✅ | `compactc v0.31.1` at `~/.compact/versions/0.31.1/` · Node `v22.18.0` — see [Setup section](#local-setup) |
-| Contract compiles via `compact compile` | ✅ | Both contracts compiled cleanly — 11 ZK circuits generated — screenshot below |
-| Passing test suite | ✅ | 26 tests across [`smartcontract/test/`](https://github.com/bbkenny/verities/tree/master/smartcontract/test) — run `npm test` |
-| Generated `managed/` directory (circuits + keys) | ✅ | [`smartcontract/managed/`](https://github.com/bbkenny/verities/tree/master/smartcontract/managed) — prover + verifier keys for all 11 circuits |
+| Contract compiles via `compact compile` | ✅ | Both contracts compiled cleanly — 15 ZK circuits generated — screenshot below |
+| Passing test suite | ✅ | 42 tests across [`smartcontract/src/`](https://github.com/bbkenny/verities/tree/master/smartcontract/src) — run `npm test` |
+| Generated `managed/` directory (circuits + keys) | ✅ | [`smartcontract/managed/`](https://github.com/bbkenny/verities/tree/master/smartcontract/managed) — prover + verifier keys for all 15 circuits |
 | Contract deployed to Preview or Preprod | ⏳ | Pending — Preview RPC unavailable at submission time. Contract code complete and compiled. |
 | Initial product idea paragraph in README | ✅ | [Overview section](#overview) — behavioral reputation layer with ZK selective disclosure |
 | Minimum 5 meaningful commits | ✅ | [9 commits](https://github.com/bbkenny/verities/commits/master) — scaffold → contracts → tests → CI → compile → screenshots |
 
 ### 📂 Level 1 — Code Proofs (For Reviewer)
 
-**1. Oracle Registry Contract**
+The canonical source is in `smartcontract/src/`. Key excerpts below.
+
+**1. Oracle Registry — revocation via `Map.remove()`**
 *File: `smartcontract/src/oracle_registry.compact`*
 
 ```compact
-pragma language_version 0.23;
-
-import CompactStandardLibrary;
-
-// ── Public ledger state ──────────────────────────────────────────────────────
-
-export ledger admin: Bytes<32>;
-export ledger oracle_count: Counter;
-export ledger oracles: Map<Bytes<32>, Boolean>;
-export ledger initialized: Boolean;
-
-// ── Witnesses (private inputs) ───────────────────────────────────────────────
-
-// Admin identity supplied as private witness — never re-disclosed to ledger
-witness caller_address(): Bytes<32>;
-
-// ── Circuits ─────────────────────────────────────────────────────────────────
-
-export circuit init(new_admin: Bytes<32>): [] {
-    assert(!initialized, "Already initialized");
-    admin = disclose(new_admin);
-    initialized = disclose(true);
-}
-
-export circuit add_oracle(oracle_address: Bytes<32>): [] {
+export circuit remove_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
     assert(caller == admin, "Unauthorized: caller is not admin");
-    oracles.insert(disclose(oracle_address), true);
-    oracle_count.increment(1);
+    oracles.remove(disclose(oracle_address));   // deletes the key
+    oracle_count.decrement(1);
 }
 
 export circuit is_authorized(oracle_address: Bytes<32>): Boolean {
-    return oracles.member(disclose(oracle_address));
-}
-
-export circuit transfer_admin(new_admin: Bytes<32>): [] {
-    const caller = caller_address();
-    assert(caller == admin, "Unauthorized: caller is not admin");
-    admin = disclose(new_admin);
+    return oracles.member(disclose(oracle_address));   // key presence
 }
 ```
 
-**2. Trust Attestation Contract — The Core ZK Primitive**
+**2. Trust Attestation — struct-keyed attestations + real oracle gate**
 *File: `smartcontract/src/trust_attestation.compact`*
 
 ```compact
-pragma language_version 0.23;
-
-import CompactStandardLibrary;
-
-// ── Public ledger state ──────────────────────────────────────────────────────
-
-export ledger admin: Bytes<32>;
-export ledger oracle_registry_address: Bytes<32>;
-export ledger initialized: Boolean;
-export ledger attestation_count: Counter;
-
-// SHA-256 input commitment per wallet — public, score-free
-export ledger attestation_hashes: Map<Bytes<32>, Bytes<32>>;
-export ledger attestation_timestamps: Map<Bytes<32>, Uint<64>>;
-export ledger category_count: Map<Bytes<32>, Uint<8>>;
-
-// ── Witnesses (private — NEVER touch the public ledger) ──────────────────────
-
-witness oracle_witness_address(): Bytes<32>;
-witness caller_address(): Bytes<32>;
-
-// THE CORE PRIVATE WITNESS.
-// Behavioral score (0-100). Supplied by oracle. NEVER written to ledger.
-// Used ONLY in verify_claim() for private comparison. Only Boolean returned.
-witness private_score(): Uint<8>;
-
-// ── THE CORE ZK PRIMITIVE — Selective Disclosure ─────────────────────────────
-
-// Returns TRUE if private_score() > threshold, FALSE otherwise.
-// Revealed:  ONLY the Boolean result (YES / NO).
-// Concealed: the actual score, all behavioral data, identity — everything.
-//
-// Example: "My trust score exceeds 70"
-//   → Proves YES without revealing the score is 83.
-export circuit verify_claim(threshold: Uint<8>): Boolean {
-    const score = private_score();
-    // disclose() declares intent to reveal the Boolean result only.
-    // The score stays private forever.
-    return disclose(score > threshold);
+struct WalletCategory {
+    subject: Bytes<32>;
+    category: Bytes<16>;
 }
 
 export circuit store_attestation(
     wallet: Bytes<32>,
+    category: Bytes<16>,
     input_hash: Bytes<32>,
     timestamp: Uint<64>
 ): [] {
-    attestation_hashes.insert(disclose(wallet), disclose(input_hash));
-    attestation_timestamps.insert(disclose(wallet), disclose(timestamp));
+    const caller = caller_address();
+    assert(is_authorized(caller), "Unauthorized: caller is not an authorized oracle");
+
+    const key = WalletCategory { subject: wallet, category: category };
+    attestation_hashes.insert(disclose(key), disclose(input_hash));
+    attestation_timestamps.insert(disclose(key), disclose(timestamp));
     attestation_count.increment(1);
+}
+
+export circuit verify_claim(
+    wallet: Bytes<32>,
+    category: Bytes<16>,
+    threshold: Uint<8>
+): Boolean {
+    const key = WalletCategory { subject: wallet, category: category };
+    assert(attestation_hashes.member(disclose(key)), "No attestation for wallet/category");
+    const score = private_score();
+    return disclose(score > threshold);   // only the boolean is revealed
 }
 ```
 
@@ -590,7 +590,7 @@ export circuit store_attestation(
 **Oracle Registry — 5/5 circuits compiled**
 ![oracle_registry compile output](docs/screenshots/compile_oracle_registry.png)
 
-**Trust Attestation — 6/6 circuits compiled**
+**Trust Attestation — 10/10 circuits compiled**
 ![trust_attestation compile output](docs/screenshots/compile_trust_attestation.png)
 
 ---
