@@ -440,8 +440,8 @@ Every row is a separate product that could be built on Verities' `verify_claim()
 
 | Level | Name | Goal |
 |---|---|---|
-| 🌑 **Level 1** | New Moon | Toolchain set up, contracts compiled, deployed to Preprod. This submission. |
-| 🌒 **Level 2** | Waxing Crescent | Frontend wallet connection (Lace/Midnight wallet), attestation flow UI, proof generation visible in browser. |
+| 🌑 **Level 1** | New Moon | ✅ Toolchain set up, contracts compiled, deployed to Preview. |
+| 🌒 **Level 2** | Waxing Crescent | Frontend wallet connection (Lace), live `verify_claim()` circuit call with observable privacy — this submission. |
 | 🌓 **Level 3** | First Quarter | Idea submission + oracle demo with FluxID as example provider. Live `verify_claim()` demo. |
 | 🌔 **Level 4** | Waxing Gibbous | Production UI with 7 states per screen. Multiple claim categories. Verifier dashboard. |
 | 🌕 **Level 5** | Full Moon | Full MVP: multi-oracle support, real behavioral data, verifier API endpoint. |
@@ -598,6 +598,69 @@ export circuit verify_claim(
 
 **trust_attestation — deployed on Midnight Preview**
 ![trust_attestation deployment](docs/screenshots/contract-deployment_trust_attestation.png)
+
+---
+
+## 🌒 Level 2 — Waxing Crescent Submission
+
+The first thread of light: the contract is wired to a real frontend, the Lace
+wallet connects, and a circuit is called live — proving something **without
+showing it**.
+
+### Live demo
+
+- **Live URL:** https://use-verities.vercel.app/
+- **Repo:** https://github.com/bbkenny/verities
+
+### The observable privacy claim
+
+Verities' flagship circuit `verify_claim()` proves a claim **without revealing
+the underlying data**:
+
+```compact
+export circuit verify_claim(wallet, category, threshold): Boolean {
+    assert(attestation_hashes.member(...), "No attestation");
+    const score = private_score();        // private witness — never on-chain
+    return disclose(score > threshold);   // ONLY the boolean is revealed
+}
+```
+
+- **Revealed:** a single `YES`/`NO` ("my trust score exceeds 70").
+- **Concealed:** the actual score, all behavioral data, the wallet, the counterparties.
+
+In the UI, a user connects Lace, picks a threshold, and receives `Verified ✓`
+or `Not verified ✗` — the score `83` never appears on-chain or in the result.
+
+### Level 2 requirements map
+
+| Requirement | Status |
+|---|---|
+| Lace wallet connect / disconnect | ✅ `frontend/src/services/midnight/wallet.ts` (DApp connector API 4.x) |
+| Circuit called from the frontend | ✅ `verify_claim()` invoked via the browser providers |
+| Observable privacy behavior | ✅ boolean disclosed, score kept private (above) |
+| Contract deployed to Preprod | ⏳ pending Preprod redeploy (currently on Preview — see [`docs/deployments.md`](docs/deployments.md)) |
+| Minimum 8 meaningful commits | ✅ 18+ |
+
+### Architecture
+
+```
+Lace extension (window.midnight, DApp connector 4.x)
+        │ connect(networkId)
+        ▼
+WalletProvider (balanceTx / submitTx via wallet)
+        │
+        ▼
+initializeProviders()  ── FetchZkConfigProvider  (zkir + verifier keys over HTTP)
+                      ── httpClientProofProvider (proof server from wallet config)
+                      ── indexerPublicDataProvider
+                      ── in-memory private state provider (browser)
+        │
+        ▼
+VeritiesAPI.join(address) ──▶ callTx.verify_claim(wallet, category, threshold)
+        │
+        ▼
+YES / NO  (score never disclosed)
+```
 
 ---
 
