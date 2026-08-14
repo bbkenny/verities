@@ -6,14 +6,14 @@ import NetworkSelector from '@/components/network-selector';
 import { useWallet } from '@/context/wallet-context';
 
 export default function Dashboard() {
-  const { connected, address, attestations } = useWallet();
+  const { connected, address, walletName, attestations } = useWallet();
   const latest = attestations[0];
 
   return (
     <>
       <div className="top-bar">
         <div className="welcome-msg">
-          <h1>{connected ? 'Welcome back 👋' : 'Welcome to Verities 👋'}</h1>
+          <h1>{connected ? `Welcome back${walletName ? `, ${walletName}` : ''} 👋` : 'Welcome to Verities 👋'}</h1>
           <p>{connected ? 'Your privacy-preserving trust, on-chain' : 'Connect your wallet to get started'}</p>
         </div>
         <div className="top-bar-right">

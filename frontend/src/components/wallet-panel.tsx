@@ -9,8 +9,9 @@ import { useWallet } from '@/context/wallet-context';
  * and the connected wallet's real on-chain attestations.
  */
 export default function WalletPanel() {
-  const { connected, address, attestations, busy, error, connect, disconnect, prove } = useWallet();
+  const { connected, address, walletName, attestations, busy, error, connect, disconnect, prove, saveName } = useWallet();
   const [result, setResult] = useState<{ ok: boolean; label: string }>();
+  const [nameInput, setNameInput] = useState('');
 
   const handleProve = async () => {
     setResult(undefined);
@@ -40,6 +41,20 @@ export default function WalletPanel() {
       </div>
 
       {address && <code style={{ fontSize: '0.8rem', opacity: 0.7, wordBreak: 'break-all' }}>{address}</code>}
+
+      {connected && !walletName && (
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder="What should we call you?"
+            style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'inherit' }}
+          />
+          <button className="btn-primary" onClick={() => nameInput.trim() && saveName(nameInput)} disabled={!nameInput.trim()}>
+            Save
+          </button>
+        </div>
+      )}
 
       {!connected ? (
         <button className="btn-primary" onClick={connect} disabled={busy}>

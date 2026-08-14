@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from 'react';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { installBrowserPolyfills } from '@/lib/polyfills';
+import { getWalletName, setWalletName as persistWalletName } from '@/lib/wallet-names';
 import { BrowserVeritiesManager } from '@/services/midnight';
 import { DEFAULT_NETWORK, NETWORKS, type NetworkConfig } from '@/config/networks';
 
@@ -17,6 +18,7 @@ export interface Attestation {
 interface WalletContextValue {
   readonly connected: boolean;
   readonly address?: string;
+  readonly walletName?: string;
   readonly attestations: Attestation[];
   readonly busy: boolean;
   readonly error?: string;
@@ -25,6 +27,7 @@ interface WalletContextValue {
   readonly connect: () => Promise<void>;
   readonly disconnect: () => void;
   readonly prove: () => Promise<boolean>;
+  readonly saveName: (name: string) => void;
   readonly switchNetwork: (network: NetworkConfig) => void;
   readonly refreshAttestations: () => Promise<void>;
 }
@@ -35,6 +38,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [network, setNetwork] = useState<NetworkConfig>(DEFAULT_NETWORK);
   const [connected, setConnected] = useState(false);
   const [address, setAddress] = useState<string>();
+  const [walletName, setWalletName] = useState<string>();
   const [attestations, setAttestations] = useState<Attestation[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -60,6 +64,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const { address: addr } = await manager.connect();
       setConnected(true);
       setAddress(addr);
+      setWalletName(getWalletName(addr));
       await refreshAttestations();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -72,14 +77,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     manager.disconnect();
     setConnected(false);
     setAddress(undefined);
+    setWalletName(undefined);
     setAttestations([]);
   }, [manager]);
+
+  const saveName = useCallback((name: string) => {
+    setAddress((addr) => {
+      if (addr) persistWalletName(addr, name);
+      return addr;
+    });
+    setWalletName(name.trim());
+  }, []);
 
   const switchNetwork = useCallback((next: NetworkConfig) => {
     setNetworkId(next.id);
     setNetwork(next);
     setConnected(false);
     setAddress(undefined);
+    setWalletName(undefined);
     setAttestations([]);
     setError(undefined);
   }, []);
@@ -103,6 +118,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     () => ({
       connected,
       address,
+      walletName,
       attestations,
       busy,
       error,
@@ -111,10 +127,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       connect,
       disconnect,
       prove,
+      saveName,
       switchNetwork,
       refreshAttestations,
     }),
-    [connected, address, attestations, busy, error, network, connect, disconnect, prove, switchNetwork, refreshAttestations],
+    [connected, address, walletName, attestations, busy, error, network, connect, disconnect, prove, saveName, switchNetwork, refreshAttestations],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
