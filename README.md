@@ -381,15 +381,22 @@ managed/
 
 ### Deployed Contracts
 
+**Midnight Preprod (Level 2):**
+
+| Contract | Network | Address |
+|---|---|---|
+| oracle_registry | Midnight Preprod | [`166dc24b…0cbe4`](https://explorer.preprod.midnight.network/contracts/stream/166dc24bf58a14b8183e231ddfd6a5579528bd6e8860832d2fcb4a730020cbe4) |
+| trust_attestation | Midnight Preprod | [`6f61012d…8b9a75`](https://explorer.preprod.midnight.network/contracts/stream/6f61012d8a550cd813f96e5ddec88c858b906e90f8deeee909ebd05e1a8b9a75) |
+
+**Midnight Preview (Level 1):**
+
 | Contract | Network | Address |
 |---|---|---|
 | oracle_registry | Midnight Preview | [`72710e10…ccdfd6`](https://explorer.preview.midnight.network/contracts/stream/72710e10c94a47a3752ed6e4b73e9b9ea20f864b32a6c493766cdab9fdccdfd6) |
 | trust_attestation | Midnight Preview | [`5ed3ab3e…1f4953`](https://explorer.preview.midnight.network/contracts/stream/5ed3ab3e808e43711ddab79a86e0d9e4ac1d8b36d5e01f62b13db98cf51f4953) |
 
-> Deployed to Midnight **Preview** (the recommended environment for this
-> challenge while Preprod is unstable). Full addresses and timestamps are in
-> [`docs/deployments.md`](docs/deployments.md). Compile + deployment screenshots
-> are in [`docs/screenshots/`](docs/screenshots/).
+> Full addresses and timestamps are in [`docs/deployments.md`](docs/deployments.md).
+> Compile + deployment screenshots are in [`docs/screenshots/`](docs/screenshots/).
 
 ---
 
@@ -638,7 +645,7 @@ or `Not verified ✗` — the score `83` never appears on-chain or in the result
 | Lace wallet connect / disconnect | ✅ `frontend/src/services/midnight/wallet.ts` (DApp connector API 4.x) |
 | Circuit called from the frontend | ✅ `verify_claim()` invoked via the browser providers |
 | Observable privacy behavior | ✅ boolean disclosed, score kept private (above) |
-| Contract deployed to Preprod | ⏳ pending Preprod redeploy (currently on Preview — see [`docs/deployments.md`](docs/deployments.md)) |
+| Contract deployed to Preprod | ✅ | Both deployed to **Midnight Preprod** — `oracle_registry` `166dc24b…0cbe4`, `trust_attestation` `6f61012d…8b9a75` (see [`docs/deployments.md`](docs/deployments.md)) |
 | Minimum 8 meaningful commits | ✅ 18+ |
 
 ### Architecture
