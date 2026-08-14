@@ -383,15 +383,13 @@ managed/
 
 | Contract | Network | Address |
 |---|---|---|
-| oracle_registry | Midnight Preprod | `[pending — not yet deployed]` |
-| trust_attestation | Midnight Preprod | `[pending — not yet deployed]` |
+| oracle_registry | Midnight Preview | [`72710e10…ccdfd6`](https://explorer.preview.midnight.network/contracts/stream/72710e10c94a47a3752ed6e4b73e9b9ea20f864b32a6c493766cdab9fdccdfd6) |
+| trust_attestation | Midnight Preview | [`5ed3ab3e…1f4953`](https://explorer.preview.midnight.network/contracts/stream/5ed3ab3e808e43711ddab79a86e0d9e4ac1d8b36d5e01f62b13db98cf51f4953) |
 
-> A real deployment requires a funded Midnight wallet (Lace/CLI) plus a local
-> proof server. The wallet SDK is published to a private registry and is not
-> installable from the public npm registry used by `package.json`, so
-> `deploy.sh` compiles the contracts for real and then fails loudly (rather
-> than faking a deployment) if no signer is configured. Screenshots of
-> successful compile output are in [`docs/screenshots/`](docs/screenshots/).
+> Deployed to Midnight **Preview** (the recommended environment for this
+> challenge while Preprod is unstable). Full addresses and timestamps are in
+> [`docs/deployments.md`](docs/deployments.md). Compile + deployment screenshots
+> are in [`docs/screenshots/`](docs/screenshots/).
 
 ---
 
@@ -511,7 +509,9 @@ trust scores              via zero-knowledge proofs
 ### 🌑 Level 1 — New Moon Submission
 
 - **GitHub Repository:** [https://github.com/bbkenny/verities](https://github.com/bbkenny/verities)
-- **Contract Address:** `Pending — deployment attempted, Preview RPC unavailable at submission time`
+- **Contract Addresses (Midnight Preview):**
+  - `oracle_registry` → `72710e10c94a47a3752ed6e4b73e9b9ea20f864b32a6c493766cdab9fdccdfd6`
+  - `trust_attestation` → `5ed3ab3e808e43711ddab79a86e0d9e4ac1d8b36d5e01f62b13db98cf51f4953`
 - **Compiler:** `compactc v0.31.1` · Language: `v0.23.0` · Platform: `x86_64 Linux`
 - **Circuits Generated:** 15 total (5 oracle_registry + 10 trust_attestation)
 
@@ -525,9 +525,9 @@ Each requirement mapped to the exact file, link, or screenshot that satisfies it
 | Contract compiles via `compact compile` | ✅ | Both contracts compiled cleanly — 15 ZK circuits generated — screenshot below |
 | Passing test suite | ✅ | 42 tests across [`smartcontract/src/`](https://github.com/bbkenny/verities/tree/master/smartcontract/src) — run `npm test` |
 | Generated `managed/` directory (circuits + keys) | ✅ | [`smartcontract/managed/`](https://github.com/bbkenny/verities/tree/master/smartcontract/managed) — prover + verifier keys for all 15 circuits |
-| Contract deployed to Preview or Preprod | ⏳ | Pending — Preview RPC unavailable at submission time. Contract code complete and compiled. |
+| Contract deployed to Preview or Preprod | ✅ | Both deployed to **Midnight Preview** — `oracle_registry` `72710e10…ccdfd6`, `trust_attestation` `5ed3ab3e…1f4953` (see [`docs/deployments.md`](docs/deployments.md) + screenshots below) |
 | Initial product idea paragraph in README | ✅ | [Overview section](#overview) — behavioral reputation layer with ZK selective disclosure |
-| Minimum 5 meaningful commits | ✅ | [9 commits](https://github.com/bbkenny/verities/commits/master) — scaffold → contracts → tests → CI → compile → screenshots |
+| Minimum 5 meaningful commits | ✅ | [17+ commits](https://github.com/bbkenny/verities/commits/master) — scaffold → contracts → tests → CI → compile → screenshots → deploy |
 
 ### 📂 Level 1 — Code Proofs (For Reviewer)
 
@@ -592,6 +592,12 @@ export circuit verify_claim(
 
 **Trust Attestation — 10/10 circuits compiled**
 ![trust_attestation compile output](docs/screenshots/compile_trust_attestation.png)
+
+**oracle_registry — deployed on Midnight Preview**
+![oracle_registry deployment](docs/screenshots/contract-deployment_oracle_registry.png)
+
+**trust_attestation — deployed on Midnight Preview**
+![trust_attestation deployment](docs/screenshots/contract-deployment_trust_attestation.png)
 
 ---
 
