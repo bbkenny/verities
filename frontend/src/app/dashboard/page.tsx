@@ -1,4 +1,5 @@
 import { Bell, ChevronDown, Shield, Users, Network, Clock, ShieldCheck, FileCheck, DollarSign, Wallet, FileText, Lock } from 'lucide-react';
+import WalletPanel from '@/components/wallet-panel';
 
 export default function Dashboard() {
   return (
@@ -19,6 +20,8 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <WalletPanel />
 
       <div className="dashboard-grid-top">
         {/* Trust Score Card */}
