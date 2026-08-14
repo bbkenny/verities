@@ -1,59 +1,24 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { useState } from 'react';
 import { ShieldCheck, ShieldX } from 'lucide-react';
-import { networkId } from '@/config';
-import { installBrowserPolyfills } from '@/lib/polyfills';
-import { BrowserVeritiesManager } from '@/services/midnight';
-
-installBrowserPolyfills();
-setNetworkId(networkId);
+import { useWallet } from '@/context/wallet-context';
 
 /**
- * Wallet connect/disconnect + the privacy-preserving `verify_claim` circuit call.
- * (Contract deployment + admin management live on the /dashboard/admin page.)
+ * Wallet connect/disconnect, the privacy-preserving `verify_claim` circuit call,
+ * and the connected wallet's real on-chain attestations.
  */
 export default function WalletPanel() {
-  const manager = useMemo(() => new BrowserVeritiesManager(), []);
-  const [connected, setConnected] = useState(false);
-  const [address, setAddress] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const { connected, address, attestations, busy, error, connect, disconnect, prove } = useWallet();
   const [result, setResult] = useState<{ ok: boolean; label: string }>();
 
-  const connect = async () => {
-    setBusy(true);
-    setError(undefined);
-    try {
-      const { address: addr } = await manager.connect();
-      setConnected(true);
-      setAddress(addr);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const disconnect = () => {
-    manager.disconnect();
-    setConnected(false);
-    setAddress(undefined);
-    setResult(undefined);
-  };
-
-  const verify = async () => {
-    setBusy(true);
-    setError(undefined);
+  const handleProve = async () => {
     setResult(undefined);
     try {
-      const ok = await manager.selfAttestAndVerify('lending', 70);
+      const ok = await prove();
       setResult(ok ? { ok: true, label: 'Verified — trust score exceeds 70' } : { ok: false, label: 'Not verified' });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
+    } catch {
+      // error surfaced via context
     }
   };
 
@@ -70,15 +35,11 @@ export default function WalletPanel() {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <span
-          style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? '#10B981' : '#64748b' }}
-        />
-        <span style={{ fontWeight: 600 }}>{connected ? `Connected (${networkId})` : 'Wallet not connected'}</span>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? '#10B981' : '#64748b' }} />
+        <span style={{ fontWeight: 600 }}>{connected ? 'Wallet connected' : 'Wallet not connected'}</span>
       </div>
 
-      {address && (
-        <code style={{ fontSize: '0.8rem', opacity: 0.7, wordBreak: 'break-all' }}>{address}</code>
-      )}
+      {address && <code style={{ fontSize: '0.8rem', opacity: 0.7, wordBreak: 'break-all' }}>{address}</code>}
 
       {!connected ? (
         <button className="btn-primary" onClick={connect} disabled={busy}>
@@ -86,7 +47,7 @@ export default function WalletPanel() {
         </button>
       ) : (
         <>
-          <button className="btn-primary" onClick={verify} disabled={busy}>
+          <button className="btn-primary" onClick={handleProve} disabled={busy}>
             {busy ? 'Proving…' : 'Prove trust score > 70 (privately)'}
           </button>
           <button className="btn-outline" onClick={disconnect} disabled={busy}>
@@ -99,6 +60,17 @@ export default function WalletPanel() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: result.ok ? '#10B981' : '#F59E0B' }}>
           {result.ok ? <ShieldCheck size={18} /> : <ShieldX size={18} />}
           <span>{result.label}</span>
+        </div>
+      )}
+
+      {attestations.length > 0 && (
+        <div style={{ fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          <strong>Your attestations ({attestations.length})</strong>
+          {attestations.map((a) => (
+            <div key={a.category + a.timestamp} style={{ opacity: 0.8 }}>
+              {a.category} · {new Date(a.timestamp * 1000).toLocaleDateString()}
+            </div>
+          ))}
         </div>
       )}
 

@@ -1,13 +1,19 @@
+'use client';
+
 import { Bell, ChevronDown, Shield, Users, Network, Clock, ShieldCheck, FileCheck, DollarSign, Wallet, FileText, Lock } from 'lucide-react';
 import WalletPanel from '@/components/wallet-panel';
+import { useWallet } from '@/context/wallet-context';
 
 export default function Dashboard() {
+  const { connected, address, attestations } = useWallet();
+  const latest = attestations[0];
+
   return (
     <>
       <div className="top-bar">
         <div className="welcome-msg">
-          <h1>Welcome back, Ada 👋</h1>
-          <p>Here's your trust overview</p>
+          <h1>{connected ? 'Welcome back 👋' : 'Welcome to Verities 👋'}</h1>
+          <p>{connected ? 'Your privacy-preserving trust, on-chain' : 'Connect your wallet to get started'}</p>
         </div>
         <div className="top-bar-right">
           <button className="notification-btn">
@@ -15,7 +21,7 @@ export default function Dashboard() {
           </button>
           <div className="network-selector">
             <span className="status-dot"></span>
-            Midnight Testnet
+            Midnight Preprod
             <ChevronDown size={14} />
           </div>
         </div>
@@ -24,17 +30,17 @@ export default function Dashboard() {
       <WalletPanel />
 
       <div className="dashboard-grid-top">
-        {/* Trust Score Card */}
+        {/* Trust Overview Card */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h3 className="card-title">Trust Score</h3>
+            <h3 className="card-title">Trust Overview</h3>
           </div>
           <div className="trust-score-container">
             <div className="score-circle">
               <div className="score-content">
-                <div className="score-number">782</div>
+                <div className="score-number">{attestations.length}</div>
                 <div className="score-badge">
-                  <ShieldCheck size={12} /> Excellent
+                  <ShieldCheck size={12} /> Attestations
                 </div>
               </div>
             </div>
@@ -42,28 +48,28 @@ export default function Dashboard() {
               <div className="stat-item">
                 <Shield size={20} className="stat-icon" />
                 <div className="stat-info">
-                  <h4>Top 15%</h4>
-                  <p>Compared to all users</p>
+                  <h4>Private</h4>
+                  <p>Your score is never stored</p>
                 </div>
               </div>
               <div className="stat-item">
                 <Users size={20} className="stat-icon" />
                 <div className="stat-info neutral">
-                  <h4>12</h4>
-                  <p>Attestations</p>
+                  <h4>{attestations.length}</h4>
+                  <p>Categories attested</p>
                 </div>
               </div>
               <div className="stat-item">
                 <Network size={20} className="stat-icon" />
                 <div className="stat-info neutral">
-                  <h4>8</h4>
-                  <p>Active Connections</p>
+                  <h4>{connected ? address?.slice(0, 6) + '…' : '—'}</h4>
+                  <p>Connected wallet</p>
                 </div>
               </div>
             </div>
           </div>
           <div className="score-footer">
-            <Clock size={14} /> Score updated 2h ago
+            <Clock size={14} /> Live on-chain data
           </div>
         </div>
 
@@ -72,20 +78,28 @@ export default function Dashboard() {
           <div className="card-header" style={{ width: '100%', marginBottom: '0.5rem' }}>
             <h3 className="card-title">Recent Attestation</h3>
           </div>
-          <div className="attestation-icon" style={{ marginTop: '1rem' }}>
-            <div style={{ width: '64px', height: '64px', background: 'linear-gradient(135deg, #DDA61A, #B38515)', borderRadius: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 0 20px rgba(221, 166, 26, 0.3)' }}>
-              <Shield size={32} color="white" />
-            </div>
-          </div>
-          <h3 className="attestation-title">Financial Reliability</h3>
-          <p className="attestation-subtitle">Score &gt; 700</p>
-          <div className="verified-badge">
-            <ShieldCheck size={12} /> Verified
-          </div>
-          <div className="attestation-meta">
-            Issued by FluxID Oracle<br />
-            May 18, 2025
-          </div>
+          {latest ? (
+            <>
+              <div className="attestation-icon" style={{ marginTop: '1rem' }}>
+                <div style={{ width: '64px', height: '64px', background: 'linear-gradient(135deg, #DDA61A, #B38515)', borderRadius: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 0 20px rgba(221, 166, 26, 0.3)' }}>
+                  <Shield size={32} color="white" />
+                </div>
+              </div>
+              <h3 className="attestation-title">{latest.category || 'Attestation'}</h3>
+              <p className="attestation-subtitle">Score proven &gt; threshold (private)</p>
+              <div className="verified-badge">
+                <ShieldCheck size={12} /> Verified
+              </div>
+              <div className="attestation-meta">
+                Issued via self-attestation<br />
+                {new Date(latest.timestamp * 1000).toLocaleDateString()}
+              </div>
+            </>
+          ) : (
+            <p style={{ opacity: 0.6, padding: '1rem 0' }}>
+              {connected ? 'No attestations yet — click "Prove trust score" above to create your first one.' : 'Connect your wallet to see your attestations.'}
+            </p>
+          )}
           <button className="btn-full">View Attestation</button>
         </div>
       </div>

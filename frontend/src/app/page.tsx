@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { Play, Shield, Layers, CheckCircle2, Puzzle, Hexagon, ShieldCheck, UserCheck, Key, Star } from 'lucide-react';
 
 export default function Home() {
@@ -16,7 +17,9 @@ export default function Home() {
           <a href="#">Docs</a>
           <a href="#">About</a>
         </div>
-        <button className="btn-primary">Launch App</button>
+        <button className="btn-primary">
+          <Link href="/dashboard" style={{ color: 'inherit', textDecoration: 'none' }}>Launch App</Link>
+        </button>
       </nav>
 
       <main>
@@ -31,7 +34,9 @@ export default function Home() {
             </p>
             <div className="hero-actions">
               <button className="btn-primary">
-                Launch App <span style={{ marginLeft: '4px' }}>→</span>
+                <Link href="/dashboard" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  Launch App <span style={{ marginLeft: '4px' }}>→</span>
+                </Link>
               </button>
               <button className="btn-outline">
                 How It Works <Play size={16} />

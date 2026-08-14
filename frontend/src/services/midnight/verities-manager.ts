@@ -32,6 +32,12 @@ const toBytes16 = (value: string): Uint8Array => {
   return out;
 };
 
+const bytesEqual = (a: Uint8Array, b: Uint8Array): boolean =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
+const bytesToString = (bytes: Uint8Array): string =>
+  new TextDecoder().decode(bytes).replace(/\0+$/, '').trim();
+
 const zkConfigPathFor = (name: ContractName): string =>
   name === 'trust_attestation' ? window.location.origin : `${window.location.origin}/contracts/oracle_registry`;
 
@@ -182,6 +188,24 @@ export class BrowserVeritiesManager {
     const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
     const txData = await deployed.callTx.get_category_count(wallet);
     return Number(txData.private.result);
+  }
+
+  /** Reads the connected wallet's attestations (category, timestamp, commitment hash) from the ledger. */
+  async getAttestations(): Promise<Array<{ category: string; timestamp: number; hash: Uint8Array }>> {
+    if (!TRUST_ATTESTATION_ADDRESS) return [];
+    const providers = await this.#getProviders('trust_attestation');
+    const state = await providers.publicDataProvider.queryContractState(TRUST_ATTESTATION_ADDRESS);
+    if (!state) return [];
+    const ledger = trustAttestationLedger(state.data);
+    const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
+    const out: Array<{ category: string; timestamp: number; hash: Uint8Array }> = [];
+    for (const [key, hash] of ledger.attestation_hashes) {
+      if (bytesEqual(key.subject, wallet)) {
+        const ts = ledger.attestation_timestamps.lookup(key);
+        out.push({ category: bytesToString(key.category), timestamp: Number(ts), hash });
+      }
+    }
+    return out.sort((a, b) => b.timestamp - a.timestamp);
   }
 
   // ── Admin functions ────────────────────────────────────────────────────────
