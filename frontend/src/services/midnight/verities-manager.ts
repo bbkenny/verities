@@ -2,12 +2,19 @@ import { type ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { fromHex } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { networkId, TRUST_ATTESTATION_ADDRESS } from '../../config';
-import { TrustAttestationContract, createVeritiesPrivateState } from '../../contracts';
+import {
+  OracleRegistryContract,
+  TrustAttestationContract,
+  createVeritiesPrivateState,
+} from '../../contracts';
 import { logger } from '../../lib/logger';
 import { initializeProviders, type VeritiesProviders } from './providers';
 import { connectToWallet } from './wallet';
 
-const PRIVATE_STATE_ID = 'veritiesPrivateState';
+export type ContractName = 'oracle_registry' | 'trust_attestation';
+
+const ORACLE_PRIVATE_STATE_ID = 'oracleRegistryPrivateState';
+const TRUST_PRIVATE_STATE_ID = 'trustAttestationPrivateState';
 
 /** Converts a hex string (with or without 0x) to a 32-byte value. */
 const toBytes32 = (hex: string): Uint8Array => {
@@ -28,21 +35,25 @@ const toBytes16 = (value: string): Uint8Array => {
   return out;
 };
 
+const zkConfigPathFor = (name: ContractName): string =>
+  name === 'trust_attestation' ? window.location.origin : `${window.location.origin}/contracts/oracle_registry`;
+
 export interface WalletConnection {
   readonly address: string;
 }
 
 /**
- * Browser-side manager for the Verities trust-attestation contract.
+ * Browser-side manager for the Verities contracts.
  *
- * Handles Lace wallet connect/disconnect, lazily joins (or deploys) the
- * contract, and exposes the privacy-preserving `verify_claim` circuit call.
+ * Connects to a Midnight wallet (Lace or 1AM), deploys the two contracts via the
+ * browser wallet (the wallet sponsors DUST), and exposes the privacy-preserving
+ * `verify_claim` circuit call.
  */
 export class BrowserVeritiesManager {
   #connectedAPI?: ConnectedAPI;
-  #providers?: VeritiesProviders;
-  #deployed?: unknown;
   #address?: string;
+  #providersByContract = new Map<ContractName, VeritiesProviders>();
+  #deployedByContract = new Map<ContractName, unknown>();
 
   get isConnected(): boolean {
     return this.#connectedAPI !== undefined;
@@ -52,47 +63,86 @@ export class BrowserVeritiesManager {
     return this.#address;
   }
 
-  /** Connects to the Lace wallet and initializes the browser providers. */
+  /** Connects to the wallet. */
   async connect(): Promise<WalletConnection> {
     const api = await connectToWallet(logger, networkId);
     const addresses = await api.getShieldedAddresses();
     this.#connectedAPI = api;
     this.#address = addresses.shieldedCoinPublicKey;
-    this.#providers = await initializeProviders(logger, api);
     return { address: this.#address };
   }
 
   /** Drops the current wallet connection and in-memory state. */
   disconnect(): void {
     this.#connectedAPI = undefined;
-    this.#providers = undefined;
-    this.#deployed = undefined;
+    this.#providersByContract.clear();
+    this.#deployedByContract.clear();
     this.#address = undefined;
   }
 
-  async #resolve(): Promise<any> {
-    if (this.#deployed) return this.#deployed;
-    if (!this.#providers) throw new Error('Not connected. Call connect() first.');
+  async #getProviders(name: ContractName): Promise<VeritiesProviders> {
+    if (!this.#connectedAPI) throw new Error('Not connected. Call connect() first.');
+    const existing = this.#providersByContract.get(name);
+    if (existing) return existing;
+    const providers = await initializeProviders(logger, this.#connectedAPI, zkConfigPathFor(name));
+    this.#providersByContract.set(name, providers);
+    return providers;
+  }
 
-    // The score (83) lives only in the browser's private state — it is supplied as a
-    // witness during proving and is never written to the ledger.
-    const privateState = createVeritiesPrivateState(new Uint8Array(32), 83);
+  /** Deploys a fresh contract (oracle_registry or trust_attestation) and returns its address. */
+  async deploy(name: ContractName): Promise<string> {
+    const providers = await this.#getProviders(name);
+    const admin = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
+    const privateState = createVeritiesPrivateState(admin, 83);
 
+    // Branched (rather than a union type) because the two contracts have
+    // different witness sets, which a single CompiledContract union can't express.
+    const deployed =
+      name === 'oracle_registry'
+        ? await deployContract(providers as any, {
+            compiledContract: OracleRegistryContract,
+            privateStateId: ORACLE_PRIVATE_STATE_ID,
+            initialPrivateState: privateState,
+          })
+        : await deployContract(providers as any, {
+            compiledContract: TrustAttestationContract,
+            privateStateId: TRUST_PRIVATE_STATE_ID,
+            initialPrivateState: privateState,
+          });
+
+    const address = deployed.deployTxData.public.contractAddress;
+    providers.privateStateProvider.setContractAddress(address);
+    await deployed.callTx.init(admin);
+    this.#deployedByContract.set(name, deployed);
+    return address;
+  }
+
+  /** Resolves (join or deploy) the trust_attestation contract. */
+  async #resolveTrustAttestation(): Promise<any> {
+    const existing = this.#deployedByContract.get('trust_attestation');
+    if (existing) return existing;
+    const providers = await this.#getProviders('trust_attestation');
+    const admin = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
+    const privateState = createVeritiesPrivateState(admin, 83);
+
+    let deployed: any;
     if (TRUST_ATTESTATION_ADDRESS) {
-      this.#deployed = await findDeployedContract(this.#providers as any, {
+      deployed = await findDeployedContract(providers as any, {
         contractAddress: TRUST_ATTESTATION_ADDRESS,
         compiledContract: TrustAttestationContract,
-        privateStateId: PRIVATE_STATE_ID,
+        privateStateId: TRUST_PRIVATE_STATE_ID,
         initialPrivateState: privateState,
       });
     } else {
-      this.#deployed = await deployContract(this.#providers as any, {
+      deployed = await deployContract(providers as any, {
         compiledContract: TrustAttestationContract,
-        privateStateId: PRIVATE_STATE_ID,
+        privateStateId: TRUST_PRIVATE_STATE_ID,
         initialPrivateState: privateState,
       });
+      await deployed.callTx.init(admin);
     }
-    return this.#deployed;
+    this.#deployedByContract.set('trust_attestation', deployed);
+    return deployed;
   }
 
   /**
@@ -100,7 +150,7 @@ export class BrowserVeritiesManager {
    * boolean. The score itself is never disclosed.
    */
   async verifyClaim(category: string, threshold: number): Promise<boolean> {
-    const deployed = await this.#resolve();
+    const deployed = await this.#resolveTrustAttestation();
     const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
     const txData = await deployed.callTx.verify_claim(wallet, toBytes16(category), BigInt(threshold));
     return txData.private.result;
@@ -108,7 +158,7 @@ export class BrowserVeritiesManager {
 
   /** Returns the number of distinct attestation categories for the connected wallet. */
   async getCategoryCount(): Promise<number> {
-    const deployed = await this.#resolve();
+    const deployed = await this.#resolveTrustAttestation();
     const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
     const txData = await deployed.callTx.get_category_count(wallet);
     return Number(txData.private.result);

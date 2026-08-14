@@ -3,6 +3,7 @@
  */
 
 import { WitnessContext } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import type { Ledger as OracleRegistryLedger } from './oracle_registry/contract/index.js';
 import type { Ledger as TrustAttestationLedger } from './trust_attestation/contract/index.js';
 
 export type VeritiesPrivateState = {
@@ -14,6 +15,15 @@ export const createVeritiesPrivateState = (callerAddress: Uint8Array, score = 0)
   callerAddress,
   score,
 });
+
+export const oracleRegistryWitnesses = {
+  caller_address: ({
+    privateState,
+  }: WitnessContext<OracleRegistryLedger, VeritiesPrivateState>): [VeritiesPrivateState, Uint8Array] => [
+    privateState,
+    privateState.callerAddress,
+  ],
+};
 
 export const trustAttestationWitnesses = {
   caller_address: ({

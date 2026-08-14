@@ -14,8 +14,6 @@ export const WALLET_CONNECT_TIMEOUT_MS = 5_000;
 
 /**
  * Trust-attestation contract address to join (empty → deploy a fresh one).
- * Defaults to the deployed Preview address; override via NEXT_PUBLIC_TRUST_ATTESTATION_ADDRESS.
+ * Override via NEXT_PUBLIC_TRUST_ATTESTATION_ADDRESS after deploying.
  */
-export const TRUST_ATTESTATION_ADDRESS =
-  env.NEXT_PUBLIC_TRUST_ATTESTATION_ADDRESS ||
-  '5ed3ab3e808e43711ddab79a86e0d9e4ac1d8b36d5e01f62b13db98cf51f4953';
+export const TRUST_ATTESTATION_ADDRESS = env.NEXT_PUBLIC_TRUST_ATTESTATION_ADDRESS || '';

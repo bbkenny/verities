@@ -19,12 +19,19 @@ import { inMemoryPrivateStateProvider } from './in-memory-private-state-provider
 export type VeritiesProviders = MidnightProviders<VeritiesCircuitKeys, string, VeritiesPrivateState>;
 
 /**
- * Builds the full set of providers required to join and call the trust_attestation
+ * Builds the full set of providers required to deploy/join and call a Verities
  * contract in a browser session. The indexer / proof-server endpoints come from the
  * connected wallet's own configuration (`connectedAPI.getConfiguration()`).
+ *
+ * @param zkConfigPath Base URL from which the ZK assets (zkir + keys) are served.
+ *   The two contracts share circuit names, so each contract's assets must live under
+ *   its own path (e.g. `/` for trust_attestation, `/contracts/oracle_registry`).
  */
-export const initializeProviders = async (logger: Logger, connectedAPI: ConnectedAPI): Promise<VeritiesProviders> => {
-  const zkConfigPath = window.location.origin;
+export const initializeProviders = async (
+  logger: Logger,
+  connectedAPI: ConnectedAPI,
+  zkConfigPath: string,
+): Promise<VeritiesProviders> => {
   const keyMaterialProvider = new FetchZkConfigProvider<VeritiesCircuitKeys>(zkConfigPath, fetch.bind(window));
   const config = await connectedAPI.getConfiguration();
   const privateStateProvider = inMemoryPrivateStateProvider<string, VeritiesPrivateState>();
