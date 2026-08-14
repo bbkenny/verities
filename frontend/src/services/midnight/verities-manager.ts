@@ -152,6 +152,29 @@ export class BrowserVeritiesManager {
     return txData.private.result;
   }
 
+  /**
+   * Full privacy demo: whitelist the connected wallet as an oracle, store a
+   * self-attestation, then prove `score > threshold` — revealing only YES/NO.
+   */
+  async selfAttestAndVerify(category: string, threshold: number): Promise<boolean> {
+    const deployed = await this.#resolveTrustAttestation();
+    const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
+    const categoryBytes = toBytes16(category);
+
+    // 1. Whitelist the connected wallet as an oracle (it is also the admin).
+    await deployed.callTx.add_oracle(wallet);
+
+    // 2. Store a self-attestation: a commitment (hash) + timestamp. The score is
+    //    kept in the browser's private state and never written to the ledger.
+    const inputHash = toBytes32('verities-demo-attestation');
+    const timestamp = BigInt(Math.floor(Date.now() / 1000));
+    await deployed.callTx.store_attestation(wallet, categoryBytes, inputHash, timestamp);
+
+    // 3. Prove: `score > threshold` returns only a boolean. The score (83) stays private.
+    const txData = await deployed.callTx.verify_claim(wallet, categoryBytes, BigInt(threshold));
+    return txData.private.result;
+  }
+
   /** Returns the number of distinct attestation categories for the connected wallet. */
   async getCategoryCount(): Promise<number> {
     const deployed = await this.#resolveTrustAttestation();

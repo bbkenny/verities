@@ -63,7 +63,7 @@ export default function WalletPanel() {
     setError(undefined);
     setResult(undefined);
     try {
-      const ok = await manager.verifyClaim('lending', 70);
+      const ok = await manager.selfAttestAndVerify('lending', 70);
       setResult(ok ? { ok: true, label: 'Verified — trust score exceeds 70' } : { ok: false, label: 'Not verified' });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
