@@ -5,6 +5,7 @@ import {
   OracleRegistryContract,
   TrustAttestationContract,
   createVeritiesPrivateState,
+  trustAttestationLedger,
 } from '../../contracts';
 import { logger } from '../../lib/logger';
 import { initializeProviders, type VeritiesProviders } from './providers';
@@ -181,5 +182,43 @@ export class BrowserVeritiesManager {
     const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
     const txData = await deployed.callTx.get_category_count(wallet);
     return Number(txData.private.result);
+  }
+
+  // ── Admin functions ────────────────────────────────────────────────────────
+
+  /** Reads the contract's on-chain `admin` (32 bytes), or `null` if not deployed/queryable. */
+  async getAdmin(): Promise<Uint8Array | null> {
+    if (!TRUST_ATTESTATION_ADDRESS) return null;
+    const providers = await this.#getProviders('trust_attestation');
+    const state = await providers.publicDataProvider.queryContractState(TRUST_ATTESTATION_ADDRESS);
+    if (!state) return null;
+    return trustAttestationLedger(state.data).admin;
+  }
+
+  /** True if the connected wallet is the contract admin (the deployer). */
+  async isAdmin(): Promise<boolean> {
+    if (!this.#address) return false;
+    const admin = await this.getAdmin();
+    if (!admin) return false;
+    const mine = toBytes32(this.#address);
+    return admin.length === mine.length && admin.every((b, i) => b === mine[i]);
+  }
+
+  /** Adds an oracle to the trust_attestation whitelist. Admin only. */
+  async addOracle(oracleAddress: string): Promise<void> {
+    const deployed = await this.#resolveTrustAttestation();
+    await deployed.callTx.add_oracle(toBytes32(oracleAddress));
+  }
+
+  /** Removes an oracle from the trust_attestation whitelist. Admin only. */
+  async removeOracle(oracleAddress: string): Promise<void> {
+    const deployed = await this.#resolveTrustAttestation();
+    await deployed.callTx.remove_oracle(toBytes32(oracleAddress));
+  }
+
+  /** Transfers the trust_attestation admin to a new wallet address. Admin only. */
+  async transferAdmin(newAddress: string): Promise<void> {
+    const deployed = await this.#resolveTrustAttestation();
+    await deployed.callTx.transfer_admin(toBytes32(newAddress));
   }
 }

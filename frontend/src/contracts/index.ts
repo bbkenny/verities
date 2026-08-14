@@ -20,6 +20,9 @@ export {
   trustAttestationWitnesses,
 };
 
+export { ledger as trustAttestationLedger } from './trust_attestation/contract/index.js';
+export { ledger as oracleRegistryLedger } from './oracle_registry/contract/index.js';
+
 export const OracleRegistryContract = CompiledContract.make<
   OracleRegistry.Contract<VeritiesPrivateState>
 >('OracleRegistry', OracleRegistry.Contract<VeritiesPrivateState>).pipe(

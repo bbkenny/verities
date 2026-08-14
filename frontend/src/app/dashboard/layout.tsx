@@ -1,5 +1,5 @@
 import './dashboard.css';
-import { Home, FileCheck, ShieldAlert, GitPullRequest, Network, Activity, Code, Settings } from 'lucide-react';
+import { Home, FileCheck, ShieldAlert, GitPullRequest, Network, Activity, Code, Settings, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardLayout({
@@ -39,6 +39,9 @@ export default function DashboardLayout({
           </Link>
           <Link href="/dashboard/settings" className="nav-item">
             <Settings size={18} /> Settings
+          </Link>
+          <Link href="/dashboard/admin" className="nav-item">
+            <ShieldCheck size={18} /> Admin
           </Link>
         </nav>
         
