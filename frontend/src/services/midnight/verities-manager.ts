@@ -1,6 +1,5 @@
 import { type ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
-import { fromHex } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { networkId, TRUST_ATTESTATION_ADDRESS } from '../../config';
 import {
   OracleRegistryContract,
@@ -16,14 +15,11 @@ export type ContractName = 'oracle_registry' | 'trust_attestation';
 const ORACLE_PRIVATE_STATE_ID = 'oracleRegistryPrivateState';
 const TRUST_PRIVATE_STATE_ID = 'trustAttestationPrivateState';
 
-/** Converts a hex string (with or without 0x) to a 32-byte value. */
-const toBytes32 = (hex: string): Uint8Array => {
-  const raw = hex.startsWith('0x') ? hex.slice(2) : hex;
-  const bytes = fromHex(raw);
-  if (bytes.length === 32) return bytes;
-  if (bytes.length > 32) return bytes.slice(0, 32);
+/** Derives a deterministic 32-byte value from any address string (bech32 or hex). */
+const toBytes32 = (value: string): Uint8Array => {
+  const bytes = new TextEncoder().encode(value);
   const out = new Uint8Array(32);
-  out.set(bytes, 32 - bytes.length);
+  out.set(bytes.slice(0, 32));
   return out;
 };
 
