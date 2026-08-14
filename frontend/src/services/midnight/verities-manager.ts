@@ -1,6 +1,5 @@
 import { type ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
-import { networkId, TRUST_ATTESTATION_ADDRESS } from '../../config';
 import {
   OracleRegistryContract,
   TrustAttestationContract,
@@ -53,10 +52,17 @@ export interface WalletConnection {
  * `verify_claim` circuit call.
  */
 export class BrowserVeritiesManager {
+  #networkId: string;
+  #trustAttestationAddress: string;
   #connectedAPI?: ConnectedAPI;
   #address?: string;
   #providersByContract = new Map<ContractName, VeritiesProviders>();
   #deployedByContract = new Map<ContractName, unknown>();
+
+  constructor(networkId: string, trustAttestationAddress: string) {
+    this.#networkId = networkId;
+    this.#trustAttestationAddress = trustAttestationAddress;
+  }
 
   get isConnected(): boolean {
     return this.#connectedAPI !== undefined;
@@ -68,7 +74,7 @@ export class BrowserVeritiesManager {
 
   /** Connects to the wallet. */
   async connect(): Promise<WalletConnection> {
-    const api = await connectToWallet(logger, networkId);
+    const api = await connectToWallet(logger, this.#networkId);
     const addresses = await api.getShieldedAddresses();
     this.#connectedAPI = api;
     this.#address = addresses.shieldedCoinPublicKey;
@@ -129,9 +135,9 @@ export class BrowserVeritiesManager {
     const privateState = createVeritiesPrivateState(admin, 83);
 
     let deployed: any;
-    if (TRUST_ATTESTATION_ADDRESS) {
+    if (this.#trustAttestationAddress) {
       deployed = await findDeployedContract(providers as any, {
-        contractAddress: TRUST_ATTESTATION_ADDRESS,
+        contractAddress: this.#trustAttestationAddress,
         compiledContract: TrustAttestationContract,
         privateStateId: TRUST_PRIVATE_STATE_ID,
         initialPrivateState: privateState,
@@ -192,9 +198,9 @@ export class BrowserVeritiesManager {
 
   /** Reads the connected wallet's attestations (category, timestamp, commitment hash) from the ledger. */
   async getAttestations(): Promise<Array<{ category: string; timestamp: number; hash: Uint8Array }>> {
-    if (!TRUST_ATTESTATION_ADDRESS) return [];
+    if (!this.#trustAttestationAddress) return [];
     const providers = await this.#getProviders('trust_attestation');
-    const state = await providers.publicDataProvider.queryContractState(TRUST_ATTESTATION_ADDRESS);
+    const state = await providers.publicDataProvider.queryContractState(this.#trustAttestationAddress);
     if (!state) return [];
     const ledger = trustAttestationLedger(state.data);
     const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
@@ -212,9 +218,9 @@ export class BrowserVeritiesManager {
 
   /** Reads the contract's on-chain `admin` (32 bytes), or `null` if not deployed/queryable. */
   async getAdmin(): Promise<Uint8Array | null> {
-    if (!TRUST_ATTESTATION_ADDRESS) return null;
+    if (!this.#trustAttestationAddress) return null;
     const providers = await this.#getProviders('trust_attestation');
-    const state = await providers.publicDataProvider.queryContractState(TRUST_ATTESTATION_ADDRESS);
+    const state = await providers.publicDataProvider.queryContractState(this.#trustAttestationAddress);
     if (!state) return null;
     return trustAttestationLedger(state.data).admin;
   }

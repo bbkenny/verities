@@ -1,7 +1,8 @@
 'use client';
 
-import { Bell, ChevronDown, Shield, Users, Network, Clock, ShieldCheck, FileCheck, DollarSign, Wallet, FileText, Lock } from 'lucide-react';
+import { Bell, Shield, Users, Network, Clock, ShieldCheck, FileCheck, DollarSign, Wallet, FileText, Lock } from 'lucide-react';
 import WalletPanel from '@/components/wallet-panel';
+import NetworkSelector from '@/components/network-selector';
 import { useWallet } from '@/context/wallet-context';
 
 export default function Dashboard() {
@@ -19,11 +20,7 @@ export default function Dashboard() {
           <button className="notification-btn">
             <Bell size={20} />
           </button>
-          <div className="network-selector">
-            <span className="status-dot"></span>
-            Midnight Preprod
-            <ChevronDown size={14} />
-          </div>
+          <NetworkSelector />
         </div>
       </div>
 

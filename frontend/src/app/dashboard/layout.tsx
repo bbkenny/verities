@@ -13,10 +13,10 @@ export default function DashboardLayout({
     <WalletProvider>
       <div className="dashboard-layout">
         <aside className="sidebar">
-          <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Link href="/" className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: 'inherit' }}>
             <img src="/Verities-logo.png" alt="Verities Logo" style={{ height: '32px', objectFit: 'contain' }} />
             <span>verities</span>
-          </div>
+          </Link>
           
           <nav className="nav-menu">
             <Link href="/dashboard" className="nav-item active">

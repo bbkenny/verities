@@ -2,12 +2,11 @@
 
 import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from 'react';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import { networkId } from '@/config';
 import { installBrowserPolyfills } from '@/lib/polyfills';
 import { BrowserVeritiesManager } from '@/services/midnight';
+import { DEFAULT_NETWORK, NETWORKS, type NetworkConfig } from '@/config/networks';
 
 installBrowserPolyfills();
-setNetworkId(networkId);
 
 export interface Attestation {
   readonly category: string;
@@ -21,21 +20,29 @@ interface WalletContextValue {
   readonly attestations: Attestation[];
   readonly busy: boolean;
   readonly error?: string;
+  readonly network: NetworkConfig;
+  readonly networks: readonly NetworkConfig[];
   readonly connect: () => Promise<void>;
   readonly disconnect: () => void;
   readonly prove: () => Promise<boolean>;
+  readonly switchNetwork: (network: NetworkConfig) => void;
   readonly refreshAttestations: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const manager = useMemo(() => new BrowserVeritiesManager(), []);
+  const [network, setNetwork] = useState<NetworkConfig>(DEFAULT_NETWORK);
   const [connected, setConnected] = useState(false);
   const [address, setAddress] = useState<string>();
   const [attestations, setAttestations] = useState<Attestation[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+
+  const manager = useMemo(
+    () => new BrowserVeritiesManager(network.id, network.trustAttestationAddress),
+    [network],
+  );
 
   const refreshAttestations = useCallback(async () => {
     try {
@@ -68,6 +75,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setAttestations([]);
   }, [manager]);
 
+  const switchNetwork = useCallback((next: NetworkConfig) => {
+    setNetworkId(next.id);
+    setNetwork(next);
+    setConnected(false);
+    setAddress(undefined);
+    setAttestations([]);
+    setError(undefined);
+  }, []);
+
   const prove = useCallback(async (): Promise<boolean> => {
     setBusy(true);
     setError(undefined);
@@ -84,8 +100,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [manager, refreshAttestations]);
 
   const value = useMemo(
-    () => ({ connected, address, attestations, busy, error, connect, disconnect, prove, refreshAttestations }),
-    [connected, address, attestations, busy, error, connect, disconnect, prove, refreshAttestations],
+    () => ({
+      connected,
+      address,
+      attestations,
+      busy,
+      error,
+      network,
+      networks: NETWORKS,
+      connect,
+      disconnect,
+      prove,
+      switchNetwork,
+      refreshAttestations,
+    }),
+    [connected, address, attestations, busy, error, network, connect, disconnect, prove, switchNetwork, refreshAttestations],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

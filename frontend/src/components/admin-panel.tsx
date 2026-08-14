@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { networkId } from '@/config';
 import { installBrowserPolyfills } from '@/lib/polyfills';
+import { useWallet } from '@/context/wallet-context';
 import { BrowserVeritiesManager, type ContractName } from '@/services/midnight';
 
 installBrowserPolyfills();
@@ -14,7 +15,11 @@ setNetworkId(networkId);
  * Gated — only the wallet that deployed the contracts (the on-chain `admin`) can use it.
  */
 export default function AdminPanel() {
-  const manager = useMemo(() => new BrowserVeritiesManager(), []);
+  const { network } = useWallet();
+  const manager = useMemo(
+    () => new BrowserVeritiesManager(network.id, network.trustAttestationAddress),
+    [network],
+  );
   const [connected, setConnected] = useState(false);
   const [address, setAddress] = useState<string>();
   const [admin, setAdmin] = useState<boolean | undefined>();
