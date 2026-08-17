@@ -166,26 +166,36 @@ export class BrowserVeritiesManager {
   }
 
   /**
-   * Full privacy demo: whitelist the connected wallet as an oracle, store a
-   * self-attestation, then prove `score > threshold` — revealing only YES/NO.
+   * Admin action: attests another wallet for a category. Ensures the caller (admin)
+   * is a whitelisted oracle, then stores the target's attestation on-chain.
    */
-  async selfAttestAndVerify(category: string, threshold: number): Promise<boolean> {
+  async attestWallet(walletAddress: string, category: string): Promise<void> {
     const deployed = await this.#resolveTrustAttestation();
-    const wallet = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
-    const categoryBytes = toBytes16(category);
-
-    // 1. Whitelist the connected wallet as an oracle (it is also the admin).
-    await deployed.callTx.add_oracle(wallet);
-
-    // 2. Store a self-attestation: a commitment (hash) + timestamp. The score is
-    //    kept in the browser's private state and never written to the ledger.
+    const caller = this.#address ? toBytes32(this.#address) : new Uint8Array(32);
+    const target = toBytes32(walletAddress);
     const inputHash = toBytes32('verities-demo-attestation');
     const timestamp = BigInt(Math.floor(Date.now() / 1000));
-    await deployed.callTx.store_attestation(wallet, categoryBytes, inputHash, timestamp);
 
-    // 3. Prove: `score > threshold` returns only a boolean. The score (83) stays private.
-    const txData = await deployed.callTx.verify_claim(wallet, categoryBytes, BigInt(threshold));
-    return txData.private.result;
+    // Whitelist the caller (admin) as an oracle, then attest the target wallet.
+    await deployed.callTx.add_oracle(caller);
+    await deployed.callTx.store_attestation(target, toBytes16(category), inputHash, timestamp);
+  }
+
+  /**
+   * Prove with a graceful fallback: verifies an existing attestation, or (if the
+   * wallet is the admin and has none yet) self-attests first, then verifies.
+   * A non-admin without an attestation gets a clear error.
+   */
+  async proveOrSelfAttest(category: string, threshold: number): Promise<boolean> {
+    try {
+      return await this.verifyClaim(category, threshold);
+    } catch {
+      if (this.#address) {
+        await this.attestWallet(this.#address, category);
+        return await this.verifyClaim(category, threshold);
+      }
+      throw new Error('No attestation yet — ask an oracle (admin) to attest this wallet first.');
+    }
   }
 
   /** Returns the number of distinct attestation categories for the connected wallet. */

@@ -28,6 +28,8 @@ export default function AdminPanel() {
   const [deployed, setDeployed] = useState<Partial<Record<ContractName, string>>>({});
   const [oracleInput, setOracleInput] = useState('');
   const [newAdminInput, setNewAdminInput] = useState('');
+  const [attestInput, setAttestInput] = useState('');
+  const [attestCategory, setAttestCategory] = useState('lending');
 
   const connect = async () => {
     setBusy(true);
@@ -88,6 +90,12 @@ export default function AdminPanel() {
     run('Transfer admin', async () => {
       await manager.transferAdmin(newAdminInput);
       setNewAdminInput('');
+    });
+
+  const attestWallet = () =>
+    run('Attest wallet', async () => {
+      await manager.attestWallet(attestInput, attestCategory);
+      setAttestInput('');
     });
 
   return (
@@ -178,6 +186,30 @@ export default function AdminPanel() {
               </button>
               <button className="btn-outline" onClick={removeOracle} disabled={busy || !oracleInput}>
                 Remove
+              </button>
+            </div>
+
+            <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+
+            <h3>Attest a wallet</h3>
+            <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>
+              Whitelist this wallet and store an attestation for it, so it can prove claims on the dashboard.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                value={attestInput}
+                onChange={(e) => setAttestInput(e.target.value)}
+                placeholder="wallet address to attest"
+                style={{ flex: 1, minWidth: 200, padding: '0.5rem', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'inherit' }}
+              />
+              <input
+                value={attestCategory}
+                onChange={(e) => setAttestCategory(e.target.value)}
+                placeholder="category (e.g. lending)"
+                style={{ width: 160, padding: '0.5rem', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'inherit' }}
+              />
+              <button className="btn-primary" onClick={attestWallet} disabled={busy || !attestInput}>
+                Attest
               </button>
             </div>
 

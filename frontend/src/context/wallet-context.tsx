@@ -103,7 +103,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     setError(undefined);
     try {
-      const ok = await manager.selfAttestAndVerify('lending', 70);
+      const ok = await manager.proveOrSelfAttest('lending', 70);
       await refreshAttestations();
       return ok;
     } catch (e) {
