@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ShieldCheck, ShieldX } from 'lucide-react';
 import { useWallet } from '@/context/wallet-context';
+import { listCompatibleWallets } from '@/services/midnight/wallet';
 
 /**
  * Wallet connect/disconnect, the privacy-preserving `verify_claim` circuit call,
@@ -12,6 +13,16 @@ export default function WalletPanel() {
   const { connected, address, walletName, attestations, busy, error, connect, disconnect, prove, saveName } = useWallet();
   const [result, setResult] = useState<{ ok: boolean; label: string }>();
   const [nameInput, setNameInput] = useState('');
+  const [walletChoices, setWalletChoices] = useState<{ rdns: string; name: string }[]>();
+
+  const handleConnect = () => {
+    const wallets = listCompatibleWallets();
+    if (wallets.length > 1) {
+      setWalletChoices(wallets);
+    } else {
+      void connect(wallets[0]?.rdns);
+    }
+  };
 
   const handleProve = async () => {
     setResult(undefined);
@@ -56,11 +67,32 @@ export default function WalletPanel() {
         </div>
       )}
 
-      {!connected ? (
-        <button className="btn-primary" onClick={connect} disabled={busy}>
-          {busy ? 'Connecting…' : 'Connect Wallet (Lace / 1AM)'}
+      {!connected && !walletChoices && (
+        <button className="btn-primary" onClick={handleConnect} disabled={busy}>
+          {busy ? 'Connecting…' : 'Connect Wallet'}
         </button>
-      ) : (
+      )}
+
+      {!connected && walletChoices && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.85rem', opacity: 0.7 }}>Choose a wallet:</span>
+          {walletChoices.map((w) => (
+            <button
+              key={w.rdns}
+              className="btn-outline"
+              onClick={() => {
+                setWalletChoices(undefined);
+                void connect(w.rdns);
+              }}
+              disabled={busy}
+            >
+              {w.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {connected && (
         <>
           <button className="btn-primary" onClick={handleProve} disabled={busy}>
             {busy ? 'Proving…' : 'Prove trust score > 70 (privately)'}

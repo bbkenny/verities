@@ -72,9 +72,9 @@ export class BrowserVeritiesManager {
     return this.#address;
   }
 
-  /** Connects to the wallet. */
-  async connect(): Promise<WalletConnection> {
-    const api = await connectToWallet(logger, this.#networkId);
+  /** Connects to the wallet (optionally a specific one by rdns when several are installed). */
+  async connect(rdns?: string): Promise<WalletConnection> {
+    const api = await connectToWallet(logger, this.#networkId, rdns);
     const addresses = await api.getShieldedAddresses();
     this.#connectedAPI = api;
     this.#address = addresses.shieldedCoinPublicKey;

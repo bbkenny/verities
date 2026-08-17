@@ -10,28 +10,42 @@ import {
   WALLET_DISCOVERY_TIMEOUT_MS,
 } from '../../config';
 
-/** Finds the first browser-injected wallet whose connector API is compatible with this app. */
-const getFirstCompatibleWallet = (): InitialAPI | undefined => {
-  if (typeof window === 'undefined' || !window.midnight) return undefined;
-  return Object.values(window.midnight).find(
-    (wallet): wallet is InitialAPI =>
-      !!wallet &&
-      typeof wallet === 'object' &&
-      'apiVersion' in wallet &&
-      semver.satisfies(wallet.apiVersion, COMPATIBLE_CONNECTOR_API_VERSION),
-  );
+const isCompatible = (wallet: unknown): wallet is InitialAPI =>
+  !!wallet &&
+  typeof wallet === 'object' &&
+  'apiVersion' in wallet &&
+  semver.satisfies((wallet as InitialAPI).apiVersion, COMPATIBLE_CONNECTOR_API_VERSION);
+
+/** All browser-injected wallets whose connector API is compatible with this app. */
+const getCompatibleWallets = (): InitialAPI[] => {
+  if (typeof window === 'undefined' || !window.midnight) return [];
+  return Object.values(window.midnight).filter(isCompatible);
+};
+
+export interface WalletOption {
+  readonly rdns: string;
+  readonly name: string;
+}
+
+/** Lists the compatible wallets (e.g. Lace, 1AM) so the user can choose. */
+export const listCompatibleWallets = (): WalletOption[] =>
+  getCompatibleWallets().map((w) => ({ rdns: w.rdns, name: w.name }));
+
+const pickWallet = (rdns?: string): InitialAPI | undefined => {
+  const wallets = getCompatibleWallets();
+  if (rdns) return wallets.find((w) => w.rdns === rdns);
+  return wallets[0];
 };
 
 /**
- * Discovers a compatible Midnight wallet extension (e.g. Lace) and connects to it.
- * @throws If no compatible wallet is found, the extension fails to respond, or the user
- * declines to authorize this application.
+ * Discovers a compatible Midnight wallet extension (e.g. Lace, 1AM) and connects to it.
+ * Pass `rdns` to select a specific wallet when more than one is installed.
  */
-export const connectToWallet = (logger: Logger, networkId: string): Promise<ConnectedAPI> =>
+export const connectToWallet = (logger: Logger, networkId: string, rdns?: string): Promise<ConnectedAPI> =>
   firstValueFrom(
     fnPipe(
       interval(WALLET_DISCOVERY_POLL_INTERVAL_MS),
-      map(() => getFirstCompatibleWallet()),
+      map(() => pickWallet(rdns)),
       tap((connectorAPI) => logger.trace(connectorAPI, 'Checking for wallet connector API')),
       filter((connectorAPI): connectorAPI is InitialAPI => !!connectorAPI),
       tap((connectorAPI) => logger.info(connectorAPI, 'Compatible wallet connector API found. Connecting.')),

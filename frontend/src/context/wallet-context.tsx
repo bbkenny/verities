@@ -1,13 +1,17 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { installBrowserPolyfills } from '@/lib/polyfills';
 import { getWalletName, setWalletName as persistWalletName } from '@/lib/wallet-names';
 import { BrowserVeritiesManager } from '@/services/midnight';
-import { DEFAULT_NETWORK, NETWORKS, type NetworkConfig } from '@/config/networks';
+import { DEFAULT_NETWORK, NETWORKS, networkById, type NetworkConfig } from '@/config/networks';
 
 installBrowserPolyfills();
+
+const NETWORK_KEY = 'verities-network';
+const CONNECTED_KEY = 'verities-connected';
+const WALLET_RDNS_KEY = 'verities-wallet-rdns';
 
 export interface Attestation {
   readonly category: string;
@@ -25,7 +29,7 @@ interface WalletContextValue {
   readonly error?: string;
   readonly network: NetworkConfig;
   readonly networks: readonly NetworkConfig[];
-  readonly connect: () => Promise<void>;
+  readonly connect: (rdns?: string) => Promise<void>;
   readonly disconnect: () => void;
   readonly prove: () => Promise<boolean>;
   readonly saveName: (name: string) => void;
@@ -35,8 +39,13 @@ interface WalletContextValue {
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
+const readNetwork = (): NetworkConfig => {
+  if (typeof window === 'undefined') return DEFAULT_NETWORK;
+  return networkById(window.localStorage.getItem(NETWORK_KEY) ?? DEFAULT_NETWORK.id);
+};
+
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [network, setNetwork] = useState<NetworkConfig>(DEFAULT_NETWORK);
+  const [network, setNetwork] = useState<NetworkConfig>(readNetwork);
   const [connected, setConnected] = useState(false);
   const [address, setAddress] = useState<string>();
   const [walletName, setWalletName] = useState<string>();
@@ -59,22 +68,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [manager]);
 
-  const connect = useCallback(async () => {
-    setBusy(true);
-    setError(undefined);
-    try {
-      const { address: addr } = await manager.connect();
-      setConnected(true);
-      setAddress(addr);
-      setWalletName(getWalletName(addr));
-      setIsAdmin(await manager.isAdmin());
-      await refreshAttestations();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [manager, refreshAttestations]);
+  const connect = useCallback(
+    async (rdns?: string) => {
+      setBusy(true);
+      setError(undefined);
+      try {
+        const { address: addr } = await manager.connect(rdns);
+        setConnected(true);
+        setAddress(addr);
+        setWalletName(getWalletName(addr));
+        setIsAdmin(await manager.isAdmin());
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(CONNECTED_KEY, 'true');
+          window.localStorage.setItem(NETWORK_KEY, network.id);
+          if (rdns) window.localStorage.setItem(WALLET_RDNS_KEY, rdns);
+        }
+        await refreshAttestations();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [manager, network.id, refreshAttestations],
+  );
 
   const disconnect = useCallback(() => {
     manager.disconnect();
@@ -83,6 +100,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setWalletName(undefined);
     setIsAdmin(false);
     setAttestations([]);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(CONNECTED_KEY);
+      window.localStorage.removeItem(WALLET_RDNS_KEY);
+    }
   }, [manager]);
 
   const saveName = useCallback((name: string) => {
@@ -102,6 +123,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsAdmin(false);
     setAttestations([]);
     setError(undefined);
+    if (typeof window !== 'undefined') window.localStorage.setItem(NETWORK_KEY, next.id);
   }, []);
 
   const prove = useCallback(async (): Promise<boolean> => {
@@ -118,6 +140,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setBusy(false);
     }
   }, [manager, refreshAttestations]);
+
+  // Auto-reconnect on page load if a wallet was previously connected.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem(CONNECTED_KEY) === 'true') {
+      const rdns = window.localStorage.getItem(WALLET_RDNS_KEY) ?? undefined;
+      void connect(rdns);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const value = useMemo(
     () => ({
