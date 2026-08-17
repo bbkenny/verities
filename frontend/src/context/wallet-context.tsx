@@ -19,6 +19,7 @@ interface WalletContextValue {
   readonly connected: boolean;
   readonly address?: string;
   readonly walletName?: string;
+  readonly isAdmin: boolean;
   readonly attestations: Attestation[];
   readonly busy: boolean;
   readonly error?: string;
@@ -39,6 +40,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [address, setAddress] = useState<string>();
   const [walletName, setWalletName] = useState<string>();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [attestations, setAttestations] = useState<Attestation[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -65,6 +67,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setConnected(true);
       setAddress(addr);
       setWalletName(getWalletName(addr));
+      setIsAdmin(await manager.isAdmin());
       await refreshAttestations();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -78,6 +81,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setConnected(false);
     setAddress(undefined);
     setWalletName(undefined);
+    setIsAdmin(false);
     setAttestations([]);
   }, [manager]);
 
@@ -95,6 +99,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setConnected(false);
     setAddress(undefined);
     setWalletName(undefined);
+    setIsAdmin(false);
     setAttestations([]);
     setError(undefined);
   }, []);
@@ -119,6 +124,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       connected,
       address,
       walletName,
+      isAdmin,
       attestations,
       busy,
       error,
@@ -131,7 +137,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       switchNetwork,
       refreshAttestations,
     }),
-    [connected, address, walletName, attestations, busy, error, network, connect, disconnect, prove, saveName, switchNetwork, refreshAttestations],
+    [connected, address, walletName, isAdmin, attestations, busy, error, network, connect, disconnect, prove, saveName, switchNetwork, refreshAttestations],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
