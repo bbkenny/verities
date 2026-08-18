@@ -25,6 +25,7 @@ export default function AdminPanel() {
   const [admin, setAdmin] = useState<boolean | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [success, setSuccess] = useState<string>();
   const [deployed, setDeployed] = useState<Partial<Record<ContractName, string>>>({});
   const [oracleInput, setOracleInput] = useState('');
   const [newAdminInput, setNewAdminInput] = useState('');
@@ -34,6 +35,7 @@ export default function AdminPanel() {
   const connect = async () => {
     setBusy(true);
     setError(undefined);
+    setSuccess(undefined);
     setAdmin(undefined);
     try {
       const { address: addr } = await manager.connect();
@@ -54,13 +56,21 @@ export default function AdminPanel() {
     setAddress(undefined);
     setAdmin(undefined);
     setDeployed({});
+    setSuccess(undefined);
   };
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(true);
     setError(undefined);
+    setSuccess(undefined);
     try {
-      await fn();
+      await Promise.race([
+        fn(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timed out — the wallet did not respond. Unlock it and retry.')), 120_000),
+        ),
+      ]);
+      setSuccess(`${label} ✓`);
     } catch (e) {
       setError(`${label}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -236,6 +246,7 @@ export default function AdminPanel() {
           </>
         )}
 
+        {success && <div style={{ color: '#10B981', fontSize: '0.85rem' }}>{success}</div>}
         {error && <div style={{ color: '#EF4444', fontSize: '0.85rem' }}>{error}</div>}
       </div>
     </div>
