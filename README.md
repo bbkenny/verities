@@ -385,8 +385,8 @@ managed/
 
 | Contract | Network | Address |
 |---|---|---|
-| oracle_registry | Midnight Preprod | [`166dc24b…0cbe4`](https://explorer.preprod.midnight.network/contracts/stream/166dc24bf58a14b8183e231ddfd6a5579528bd6e8860832d2fcb4a730020cbe4) |
-| trust_attestation | Midnight Preprod | [`6f61012d…8b9a75`](https://explorer.preprod.midnight.network/contracts/stream/6f61012d8a550cd813f96e5ddec88c858b906e90f8deeee909ebd05e1a8b9a75) |
+| oracle_registry | Midnight Preprod | [`70b937d2…9c72`](https://explorer.preprod.midnight.network/contracts/stream/70b937d2e547b5bf31ab11bf1074c1a91851922efb3159e65d5d3639b8739c72) |
+| trust_attestation | Midnight Preprod | [`4305d6f2…0c3c7`](https://explorer.preprod.midnight.network/contracts/stream/4305d6f23951355cb76b75e1d25aea0dc9f892cd6649644dfc32b2d28870c3c7) |
 
 **Midnight Preview (Level 1):**
 
@@ -645,7 +645,7 @@ or `Not verified ✗` — the score `83` never appears on-chain or in the result
 | Lace wallet connect / disconnect | ✅ `frontend/src/services/midnight/wallet.ts` (DApp connector API 4.x) |
 | Circuit called from the frontend | ✅ `verify_claim()` invoked via the browser providers |
 | Observable privacy behavior | ✅ boolean disclosed, score kept private (above) |
-| Contract deployed to Preprod | ✅ | Both deployed to **Midnight Preprod** — `oracle_registry` `166dc24b…0cbe4`, `trust_attestation` `6f61012d…8b9a75` (see [`docs/deployments.md`](docs/deployments.md)) |
+| Contract deployed to Preprod | ✅ | Both deployed to **Midnight Preprod** — `oracle_registry` `70b937d2…9c72`, `trust_attestation` `4305d6f2…0c3c7` (see [`docs/deployments.md`](docs/deployments.md)) |
 | Minimum 8 meaningful commits | ✅ 18+ |
 
 ### Architecture

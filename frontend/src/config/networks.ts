@@ -20,8 +20,8 @@ export const NETWORKS: readonly NetworkConfig[] = [
   {
     id: 'preprod',
     label: 'Preprod',
-    trustAttestationAddress: '6f61012d8a550cd813f96e5ddec88c858b906e90f8deeee909ebd05e1a8b9a75',
-    oracleRegistryAddress: '166dc24bf58a14b8183e231ddfd6a5579528bd6e8860832d2fcb4a730020cbe4',
+    trustAttestationAddress: '4305d6f23951355cb76b75e1d25aea0dc9f892cd6649644dfc32b2d28870c3c7',
+    oracleRegistryAddress: '70b937d2e547b5bf31ab11bf1074c1a91851922efb3159e65d5d3639b8739c72',
   },
   {
     id: 'mainnet',
