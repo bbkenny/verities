@@ -9,7 +9,7 @@ import CompactStandardLibrary;
 // users selectively disclose claims without revealing the underlying score.
 //
 // ── Privacy model ────────────────────────────────────────────────────────────
-//   Public ledger  : admin, oracle_count, oracles (whitelist), attestation_count,
+//   Public ledger  : admins (set), oracle_count, oracles (whitelist), attestation_count,
 //                    attestation_hashes (SHA-256 commitments only),
 //                    attestation_timestamps, category_count (count only)
 //   Private witness: caller_address() — admin/oracle identity for auth, never stored
@@ -47,7 +47,8 @@ struct WalletCategory {
 
 // ── Public ledger state ──────────────────────────────────────────────────────
 
-export ledger admin: Bytes<32>;
+// Admin set — multiple addresses can hold admin authority.
+export ledger admins: Map<Bytes<32>, Boolean>;
 export ledger initialized: Boolean;
 
 // Oracle whitelist (self-contained — see note below).
@@ -76,17 +77,36 @@ witness private_score(): Uint<8>;
 
 // ── Circuits ─────────────────────────────────────────────────────────────────
 
-// Initialize: set admin. One-time only.
-export circuit init(new_admin: Bytes<32>): [] {
+// Initialize: set the first admin. One-time only.
+export circuit init(first_admin: Bytes<32>): [] {
     assert(!initialized, "Already initialized");
-    admin = disclose(new_admin);
+    admins.insert(disclose(first_admin), true);
     initialized = disclose(true);
+}
+
+// Check if an address is an admin.
+export circuit is_admin(addr: Bytes<32>): Boolean {
+    return admins.member(disclose(addr));
+}
+
+// Add an admin. Admin only.
+export circuit add_admin(new_admin: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
+    admins.insert(disclose(new_admin), true);
+}
+
+// Remove an admin. Admin only. Uses Map.remove() so the key truly disappears.
+export circuit remove_admin(addr: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
+    admins.remove(disclose(addr));
 }
 
 // Add an oracle to the authorized whitelist. Admin only.
 export circuit add_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
-    assert(caller == admin, "Unauthorized: caller is not admin");
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
     oracles.insert(disclose(oracle_address), true);
     oracle_count.increment(1);
 }
@@ -95,7 +115,7 @@ export circuit add_oracle(oracle_address: Bytes<32>): [] {
 // Uses Map.remove() so the key no longer exists and is_authorized() fails.
 export circuit remove_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
-    assert(caller == admin, "Unauthorized: caller is not admin");
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
     oracles.remove(disclose(oracle_address));
     oracle_count.decrement(1);
 }
@@ -183,11 +203,4 @@ export circuit get_category_count(wallet: Bytes<32>): Uint<8> {
     } else {
         return 0 as Uint<8>;
     }
-}
-
-// Transfer admin to a new address. Admin only.
-export circuit transfer_admin(new_admin: Bytes<32>): [] {
-    const caller = caller_address();
-    assert(caller == admin, "Unauthorized: caller is not admin");
-    admin = disclose(new_admin);
 }

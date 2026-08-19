@@ -33,7 +33,7 @@ const MOCK_TIMESTAMP  = 1753998000;
 // ── Simulated contract state (faithful to the compiled circuit) ──────────────
 
 interface AttestationState {
-  admin: string;
+  admins: Set<string>;
   initialized: boolean;
   oracle_count: number;
   oracles: Set<string>; // oracle whitelist (membership semantics)
@@ -56,7 +56,7 @@ function setPrivateScore(wallet: string, category: string, score: number): void 
 
 function createState(): AttestationState {
   return {
-    admin: '',
+    admins: new Set(),
     initialized: false,
     oracle_count: 0,
     oracles: new Set(),
@@ -67,20 +67,34 @@ function createState(): AttestationState {
   };
 }
 
-function init(state: AttestationState, new_admin: string): void {
+function init(state: AttestationState, first_admin: string): void {
   if (state.initialized) throw new Error('Already initialized');
-  state.admin = new_admin;
+  state.admins.add(first_admin);
   state.initialized = true;
 }
 
+function is_admin(state: AttestationState, addr: string): boolean {
+  return state.admins.has(addr);
+}
+
+function add_admin(state: AttestationState, new_admin: string, caller: string): void {
+  if (!state.admins.has(caller)) throw new Error('Unauthorized: caller is not an admin');
+  state.admins.add(new_admin);
+}
+
+function remove_admin(state: AttestationState, addr: string, caller: string): void {
+  if (!state.admins.has(caller)) throw new Error('Unauthorized: caller is not an admin');
+  state.admins.delete(addr);
+}
+
 function add_oracle(state: AttestationState, oracle: string, caller: string): void {
-  if (caller !== state.admin) throw new Error('Unauthorized: caller is not admin');
+  if (!state.admins.has(caller)) throw new Error('Unauthorized: caller is not an admin');
   state.oracles.add(oracle);
   state.oracle_count += 1;
 }
 
 function remove_oracle(state: AttestationState, oracle: string, caller: string): void {
-  if (caller !== state.admin) throw new Error('Unauthorized: caller is not admin');
+  if (!state.admins.has(caller)) throw new Error('Unauthorized: caller is not an admin');
   state.oracles.delete(oracle);
   state.oracle_count -= 1;
 }
@@ -142,11 +156,6 @@ function get_category_count(state: AttestationState, wallet: string): number {
   return state.category_count.get(wallet) ?? 0;
 }
 
-function transfer_admin(state: AttestationState, new_admin: string, caller: string): void {
-  if (caller !== state.admin) throw new Error('Unauthorized: caller is not admin');
-  state.admin = new_admin;
-}
-
 // ── Compiled-artifact binding ────────────────────────────────────────────────
 
 interface CircuitInfo { name: string; proof: boolean }
@@ -167,12 +176,12 @@ function loadContractInfo(name: string): ContractInfo {
 }
 
 const EXPECTED_CIRCUITS = [
-  'init', 'add_oracle', 'remove_oracle', 'is_authorized',
+  'init', 'is_admin', 'add_admin', 'remove_admin', 'add_oracle', 'remove_oracle', 'is_authorized',
   'store_attestation', 'verify_claim', 'get_attestation_hash',
-  'get_attestation_timestamp', 'get_category_count', 'transfer_admin',
+  'get_attestation_timestamp', 'get_category_count',
 ];
 const EXPECTED_LEDGER = [
-  'admin', 'initialized', 'oracle_count', 'oracles',
+  'admins', 'initialized', 'oracle_count', 'oracles',
   'attestation_count', 'attestation_hashes', 'attestation_timestamps', 'category_count',
 ];
 const EXPECTED_WITNESSES = ['caller_address', 'private_score'];
@@ -220,8 +229,8 @@ describe('trust_attestation', () => {
   });
 
   describe('init()', () => {
-    it('initializes admin', () => {
-      expect(state.admin).toBe(ADMIN_ADDRESS);
+    it('initializes the first admin', () => {
+      expect(is_admin(state, ADMIN_ADDRESS)).toBe(true);
     });
 
     it('rejects double initialization', () => {
@@ -352,15 +361,21 @@ describe('trust_attestation', () => {
     });
   });
 
-  describe('transfer_admin()', () => {
-    it('admin can transfer ownership', () => {
-      transfer_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004', ADMIN_ADDRESS);
-      expect(state.admin).toBe('0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004');
+  describe('admins', () => {
+    it('admin can add another admin', () => {
+      add_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004', ADMIN_ADDRESS);
+      expect(is_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004')).toBe(true);
     });
 
-    it('non-admin cannot transfer ownership', () => {
+    it('admin can remove an admin', () => {
+      add_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004', ADMIN_ADDRESS);
+      remove_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004', ADMIN_ADDRESS);
+      expect(is_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004')).toBe(false);
+    });
+
+    it('non-admin cannot add an admin', () => {
       expect(() =>
-        transfer_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004', ATTACKER),
+        add_admin(state, '0xNEW_ADMIN_32BYTES_PADDED_000000000000000000000000004', ATTACKER),
       ).toThrow('Unauthorized');
     });
   });

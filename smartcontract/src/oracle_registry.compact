@@ -6,46 +6,62 @@ import CompactStandardLibrary;
 // Oracle Registry — Verities Protocol
 //
 // Maintains an on-chain whitelist of authorized reputation attestation
-// providers (oracles). Only addresses registered here are trusted issuance
-// authorities for behavioral trust attestations.
+// providers (oracles). Only addresses registered here can write trust
+// attestations to the trust_attestation contract.
+//
+// Multi-admin: a set of admin addresses (not a single owner). Any admin can
+// add/remove oracles and manage the admin set itself.
 //
 // Privacy model:
-//   Public ledger  : oracle_count, admin, oracles map
-//   Private witness: caller_address() — compared against admin without
-//                    re-storing or disclosing to ledger
-//
-// Security notes:
-//   - remove_oracle() truly revokes an oracle via Map.remove() so that
-//     is_authorized() (a membership check) can no longer succeed.
-//     (Legacy versions wrote `false` into the map, leaving the key present
-//     and therefore still "member" — a bypass.)
+//   Public ledger  : admins (map), oracle_count, oracles (map), initialized
+//   Private witness: caller_address() — compared against the admins set without
+//                    re-storing or disclosing it to the ledger
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Public ledger state ──────────────────────────────────────────────────────
 
-export ledger admin: Bytes<32>;
+export ledger admins: Map<Bytes<32>, Boolean>;
+export ledger initialized: Boolean;
 export ledger oracle_count: Counter;
 export ledger oracles: Map<Bytes<32>, Boolean>;
-export ledger initialized: Boolean;
 
 // ── Witnesses (private inputs) ───────────────────────────────────────────────
 
-// Admin identity supplied as private witness — never re-disclosed to ledger
+// Caller identity supplied as private witness — never re-disclosed to the ledger.
 witness caller_address(): Bytes<32>;
 
 // ── Circuits ─────────────────────────────────────────────────────────────────
 
-// Initialize registry with first admin. One-time only.
-export circuit init(new_admin: Bytes<32>): [] {
+// Initialize with the first admin. One-time only.
+export circuit init(first_admin: Bytes<32>): [] {
     assert(!initialized, "Already initialized");
-    admin = disclose(new_admin);
+    admins.insert(disclose(first_admin), true);
     initialized = disclose(true);
 }
 
-// Add an oracle to the authorized whitelist. Admin only.
+// Check if an address is an admin.
+export circuit is_admin(addr: Bytes<32>): Boolean {
+    return admins.member(disclose(addr));
+}
+
+// Add an admin. Admin only.
+export circuit add_admin(new_admin: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
+    admins.insert(disclose(new_admin), true);
+}
+
+// Remove an admin. Admin only. Uses Map.remove() so the key truly disappears.
+export circuit remove_admin(addr: Bytes<32>): [] {
+    const caller = caller_address();
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
+    admins.remove(disclose(addr));
+}
+
+// Add an oracle to the whitelist. Admin only.
 export circuit add_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
-    assert(caller == admin, "Unauthorized: caller is not admin");
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
     oracles.insert(disclose(oracle_address), true);
     oracle_count.increment(1);
 }
@@ -54,20 +70,12 @@ export circuit add_oracle(oracle_address: Bytes<32>): [] {
 // Uses Map.remove() so the key no longer exists and is_authorized() fails.
 export circuit remove_oracle(oracle_address: Bytes<32>): [] {
     const caller = caller_address();
-    assert(caller == admin, "Unauthorized: caller is not admin");
+    assert(admins.member(disclose(caller)), "Unauthorized: caller is not an admin");
     oracles.remove(disclose(oracle_address));
     oracle_count.decrement(1);
 }
 
 // Check if an address is an authorized oracle.
-// Returns true if registered, false otherwise (including after removal).
 export circuit is_authorized(oracle_address: Bytes<32>): Boolean {
     return oracles.member(disclose(oracle_address));
-}
-
-// Transfer admin to a new address. Admin only.
-export circuit transfer_admin(new_admin: Bytes<32>): [] {
-    const caller = caller_address();
-    assert(caller == admin, "Unauthorized: caller is not admin");
-    admin = disclose(new_admin);
 }

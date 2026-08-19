@@ -6,7 +6,11 @@ export type Witnesses<PS> = {
 }
 
 export type ImpureCircuits<PS> = {
-  init(context: __compactRuntime.CircuitContext<PS>, new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  init(context: __compactRuntime.CircuitContext<PS>, first_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  is_admin(context: __compactRuntime.CircuitContext<PS>, addr_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
+  add_admin(context: __compactRuntime.CircuitContext<PS>,
+            new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  remove_admin(context: __compactRuntime.CircuitContext<PS>, addr_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   add_oracle(context: __compactRuntime.CircuitContext<PS>,
              oracle_address_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   remove_oracle(context: __compactRuntime.CircuitContext<PS>,
@@ -30,12 +34,14 @@ export type ImpureCircuits<PS> = {
                             category_0: Uint8Array): __compactRuntime.CircuitResults<PS, bigint>;
   get_category_count(context: __compactRuntime.CircuitContext<PS>,
                      wallet_0: Uint8Array): __compactRuntime.CircuitResults<PS, bigint>;
-  transfer_admin(context: __compactRuntime.CircuitContext<PS>,
-                 new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type ProvableCircuits<PS> = {
-  init(context: __compactRuntime.CircuitContext<PS>, new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  init(context: __compactRuntime.CircuitContext<PS>, first_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  is_admin(context: __compactRuntime.CircuitContext<PS>, addr_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
+  add_admin(context: __compactRuntime.CircuitContext<PS>,
+            new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  remove_admin(context: __compactRuntime.CircuitContext<PS>, addr_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   add_oracle(context: __compactRuntime.CircuitContext<PS>,
              oracle_address_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   remove_oracle(context: __compactRuntime.CircuitContext<PS>,
@@ -59,15 +65,17 @@ export type ProvableCircuits<PS> = {
                             category_0: Uint8Array): __compactRuntime.CircuitResults<PS, bigint>;
   get_category_count(context: __compactRuntime.CircuitContext<PS>,
                      wallet_0: Uint8Array): __compactRuntime.CircuitResults<PS, bigint>;
-  transfer_admin(context: __compactRuntime.CircuitContext<PS>,
-                 new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type PureCircuits = {
 }
 
 export type Circuits<PS> = {
-  init(context: __compactRuntime.CircuitContext<PS>, new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  init(context: __compactRuntime.CircuitContext<PS>, first_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  is_admin(context: __compactRuntime.CircuitContext<PS>, addr_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
+  add_admin(context: __compactRuntime.CircuitContext<PS>,
+            new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  remove_admin(context: __compactRuntime.CircuitContext<PS>, addr_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   add_oracle(context: __compactRuntime.CircuitContext<PS>,
              oracle_address_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   remove_oracle(context: __compactRuntime.CircuitContext<PS>,
@@ -91,12 +99,16 @@ export type Circuits<PS> = {
                             category_0: Uint8Array): __compactRuntime.CircuitResults<PS, bigint>;
   get_category_count(context: __compactRuntime.CircuitContext<PS>,
                      wallet_0: Uint8Array): __compactRuntime.CircuitResults<PS, bigint>;
-  transfer_admin(context: __compactRuntime.CircuitContext<PS>,
-                 new_admin_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type Ledger = {
-  readonly admin: Uint8Array;
+  admins: {
+    isEmpty(): boolean;
+    size(): bigint;
+    member(key_0: Uint8Array): boolean;
+    lookup(key_0: Uint8Array): boolean;
+    [Symbol.iterator](): Iterator<[Uint8Array, boolean]>
+  };
   readonly initialized: boolean;
   readonly oracle_count: bigint;
   oracles: {

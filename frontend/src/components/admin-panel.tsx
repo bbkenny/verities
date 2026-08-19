@@ -11,8 +11,8 @@ installBrowserPolyfills();
 setNetworkId(networkId);
 
 /**
- * Admin page: contract deployment + oracle/admin management.
- * Gated — only the wallet that deployed the contracts (the on-chain `admin`) can use it.
+ * Admin page: contract deployment, admin management, and oracle/attestation management.
+ * (Admin gate temporarily disabled — any connected wallet can reach this page.)
  */
 export default function AdminPanel() {
   const { network } = useWallet();
@@ -22,13 +22,12 @@ export default function AdminPanel() {
   );
   const [connected, setConnected] = useState(false);
   const [address, setAddress] = useState<string>();
-  const [admin, setAdmin] = useState<boolean | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
   const [deployed, setDeployed] = useState<Partial<Record<ContractName, string>>>({});
   const [oracleInput, setOracleInput] = useState('');
-  const [newAdminInput, setNewAdminInput] = useState('');
+  const [adminInput, setAdminInput] = useState('');
   const [attestInput, setAttestInput] = useState('');
   const [attestCategory, setAttestCategory] = useState('lending');
 
@@ -36,13 +35,10 @@ export default function AdminPanel() {
     setBusy(true);
     setError(undefined);
     setSuccess(undefined);
-    setAdmin(undefined);
     try {
       const { address: addr } = await manager.connect();
       setConnected(true);
       setAddress(addr);
-      const isAdmin = await manager.isAdmin();
-      setAdmin(isAdmin);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -54,7 +50,6 @@ export default function AdminPanel() {
     manager.disconnect();
     setConnected(false);
     setAddress(undefined);
-    setAdmin(undefined);
     setDeployed({});
     setSuccess(undefined);
   };
@@ -84,6 +79,18 @@ export default function AdminPanel() {
       setDeployed((prev) => ({ ...prev, [name]: contractAddress }));
     });
 
+  const addAdmin = () =>
+    run('Add admin', async () => {
+      await manager.addAdmin(adminInput);
+      setAdminInput('');
+    });
+
+  const removeAdmin = () =>
+    run('Remove admin', async () => {
+      await manager.removeAdmin(adminInput);
+      setAdminInput('');
+    });
+
   const addOracle = () =>
     run('Add oracle', async () => {
       await manager.addOracle(oracleInput);
@@ -96,12 +103,6 @@ export default function AdminPanel() {
       setOracleInput('');
     });
 
-  const transferAdmin = () =>
-    run('Transfer admin', async () => {
-      await manager.transferAdmin(newAdminInput);
-      setNewAdminInput('');
-    });
-
   const attestWallet = () =>
     run('Attest wallet', async () => {
       await manager.attestWallet(attestInput, attestCategory);
@@ -112,8 +113,7 @@ export default function AdminPanel() {
     <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 720 }}>
       <h1>Admin</h1>
       <p style={{ opacity: 0.6 }}>
-        Contract deployment and oracle/admin management. Only the wallet that deployed the
-        contracts (the on-chain <code>admin</code>) can use this page.
+        Contract deployment and management. Deploy fresh contracts, manage admins, oracles, and attestations.
       </p>
 
       <div
@@ -129,15 +129,7 @@ export default function AdminPanel() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? '#10B981' : '#64748b' }} />
-          <span style={{ fontWeight: 600 }}>
-            {admin === undefined
-              ? connected
-                ? 'Checking admin…'
-                : `Not connected (${networkId})`
-              : admin
-                ? 'Admin access ✓'
-                : 'Access denied'}
-          </span>
+          <span style={{ fontWeight: 600 }}>{connected ? `Connected (${networkId})` : 'Not connected'}</span>
         </div>
 
         {address && <code style={{ fontSize: '0.8rem', opacity: 0.7, wordBreak: 'break-all' }}>{address}</code>}
@@ -146,12 +138,6 @@ export default function AdminPanel() {
           <button className="btn-primary" onClick={connect} disabled={busy}>
             {busy ? 'Connecting…' : 'Connect Wallet'}
           </button>
-        ) : admin === undefined ? (
-          <div style={{ opacity: 0.6 }}>Loading admin status…</div>
-        ) : !admin ? (
-          <div style={{ color: '#F59E0B' }}>
-            This wallet is not the contract admin. Connect the deployer wallet to manage the contracts.
-          </div>
         ) : (
           <>
             <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
@@ -180,6 +166,27 @@ export default function AdminPanel() {
                 )}
               </div>
             )}
+
+            <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+
+            <h3>Admins</h3>
+            <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>
+              Multiple wallets can hold admin authority. Add or remove an admin address.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                value={adminInput}
+                onChange={(e) => setAdminInput(e.target.value)}
+                placeholder="admin address (mn_… or 0x…)"
+                style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'inherit' }}
+              />
+              <button className="btn-primary" onClick={addAdmin} disabled={busy || !adminInput}>
+                Add
+              </button>
+              <button className="btn-outline" onClick={removeAdmin} disabled={busy || !adminInput}>
+                Remove
+              </button>
+            </div>
 
             <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
 
@@ -220,21 +227,6 @@ export default function AdminPanel() {
               />
               <button className="btn-primary" onClick={attestWallet} disabled={busy || !attestInput}>
                 Attest
-              </button>
-            </div>
-
-            <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-
-            <h3>Transfer admin</h3>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                value={newAdminInput}
-                onChange={(e) => setNewAdminInput(e.target.value)}
-                placeholder="new admin address"
-                style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'inherit' }}
-              />
-              <button className="btn-primary" onClick={transferAdmin} disabled={busy || !newAdminInput}>
-                Transfer
               </button>
             </div>
 

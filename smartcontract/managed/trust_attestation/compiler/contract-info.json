@@ -9,7 +9,62 @@
       "proof": true,
       "arguments": [
         {
+          "name": "first_admin",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "is_admin",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "addr",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "add_admin",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
           "name": "new_admin",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "remove_admin",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "addr",
           "type": {
             "type-name": "Bytes",
             "length": 32
@@ -215,25 +270,6 @@
         "type-name": "Uint",
         "maxval": 255
       }
-    },
-    {
-      "name": "transfer_admin",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-        {
-          "name": "new_admin",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
     }
   ],
   "witnesses": [
@@ -260,13 +296,16 @@
   ],
   "ledger": [
     {
-      "name": "admin",
+      "name": "admins",
       "index": 0,
       "exported": true,
-      "storage": "Cell",
-      "type": {
+      "storage": "Map",
+      "key": {
         "type-name": "Bytes",
         "length": 32
+      },
+      "value": {
+        "type-name": "Boolean"
       }
     },
     {

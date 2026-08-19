@@ -226,22 +226,26 @@ export class BrowserVeritiesManager {
 
   // ── Admin functions ────────────────────────────────────────────────────────
 
-  /** Reads the contract's on-chain `admin` (32 bytes), or `null` if not deployed/queryable. */
-  async getAdmin(): Promise<Uint8Array | null> {
-    if (!this.#trustAttestationAddress) return null;
-    const providers = await this.#getProviders('trust_attestation');
-    const state = await providers.publicDataProvider.queryContractState(this.#trustAttestationAddress);
-    if (!state) return null;
-    return trustAttestationLedger(state.data).admin;
-  }
-
-  /** True if the connected wallet is the contract admin (the deployer). */
+  /** True if the connected wallet is a contract admin (in the on-chain admins set). */
   async isAdmin(): Promise<boolean> {
     if (!this.#address) return false;
-    const admin = await this.getAdmin();
-    if (!admin) return false;
-    const mine = toBytes32(this.#address);
-    return admin.length === mine.length && admin.every((b, i) => b === mine[i]);
+    if (!this.#trustAttestationAddress) return false;
+    const providers = await this.#getProviders('trust_attestation');
+    const state = await providers.publicDataProvider.queryContractState(this.#trustAttestationAddress);
+    if (!state) return false;
+    return trustAttestationLedger(state.data).admins.member(toBytes32(this.#address));
+  }
+
+  /** Adds a wallet to the admin set. Admin only. */
+  async addAdmin(newAdmin: string): Promise<void> {
+    const deployed = await this.#resolveTrustAttestation();
+    await deployed.callTx.add_admin(toBytes32(newAdmin));
+  }
+
+  /** Removes a wallet from the admin set. Admin only. */
+  async removeAdmin(addr: string): Promise<void> {
+    const deployed = await this.#resolveTrustAttestation();
+    await deployed.callTx.remove_admin(toBytes32(addr));
   }
 
   /** Adds an oracle to the trust_attestation whitelist. Admin only. */
@@ -254,11 +258,5 @@ export class BrowserVeritiesManager {
   async removeOracle(oracleAddress: string): Promise<void> {
     const deployed = await this.#resolveTrustAttestation();
     await deployed.callTx.remove_oracle(toBytes32(oracleAddress));
-  }
-
-  /** Transfers the trust_attestation admin to a new wallet address. Admin only. */
-  async transferAdmin(newAddress: string): Promise<void> {
-    const deployed = await this.#resolveTrustAttestation();
-    await deployed.callTx.transfer_admin(toBytes32(newAddress));
   }
 }
