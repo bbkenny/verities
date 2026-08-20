@@ -9,8 +9,13 @@ export const WALLET_DISCOVERY_POLL_INTERVAL_MS = 100;
 /** Time budget (ms) to find a compatible wallet before giving up. */
 export const WALLET_DISCOVERY_TIMEOUT_MS = 1_000;
 
-/** Time budget (ms) for the wallet extension to respond once a connection is requested. */
-export const WALLET_CONNECT_TIMEOUT_MS = 5_000;
+/**
+ * Time budget (ms) for the wallet extension to respond once a connection is
+ * requested. Generous on purpose: Lace (and other wallets) open an approval
+ * popup the user must click, so a short timeout makes the connect appear to
+ * "never complete" and surface a misleading "not authorized" error.
+ */
+export const WALLET_CONNECT_TIMEOUT_MS = 60_000;
 
 /**
  * Trust-attestation contract address to join (empty → deploy a fresh one).

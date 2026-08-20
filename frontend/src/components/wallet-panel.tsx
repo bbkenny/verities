@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ShieldCheck, ShieldX } from 'lucide-react';
 import { useWallet } from '@/context/wallet-context';
-import { listCompatibleWallets } from '@/services/midnight/wallet';
+import { discoverWallets } from '@/services/midnight/wallet';
 
 /**
  * Wallet connect/disconnect, the privacy-preserving `verify_claim` circuit call,
@@ -14,13 +14,25 @@ export default function WalletPanel() {
   const [result, setResult] = useState<{ ok: boolean; label: string }>();
   const [nameInput, setNameInput] = useState('');
   const [walletChoices, setWalletChoices] = useState<{ rdns: string; name: string }[]>();
+  const [connecting, setConnecting] = useState(false);
+  const [localError, setLocalError] = useState<string>();
 
-  const handleConnect = () => {
-    const wallets = listCompatibleWallets();
-    if (wallets.length > 1) {
-      setWalletChoices(wallets);
-    } else {
-      void connect(wallets[0]?.rdns);
+  const handleConnect = async () => {
+    setConnecting(true);
+    setLocalError(undefined);
+    try {
+      // Poll briefly: Lace often registers a beat after 1AM, so a one-shot read
+      // can miss it and silently auto-connect to the first wallet found.
+      const wallets = await discoverWallets();
+      if (wallets.length > 1) {
+        setWalletChoices(wallets);
+      } else if (wallets.length === 1) {
+        void connect(wallets[0].rdns);
+      } else {
+        setLocalError('No Midnight wallet found. Please install Lace or 1AM and refresh.');
+      }
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -68,8 +80,8 @@ export default function WalletPanel() {
       )}
 
       {!connected && !walletChoices && (
-        <button className="btn-primary" onClick={handleConnect} disabled={busy}>
-          {busy ? 'Connecting…' : 'Connect Wallet'}
+        <button className="btn-primary" onClick={handleConnect} disabled={busy || connecting}>
+          {connecting ? 'Looking for wallets…' : busy ? 'Connecting…' : 'Connect Wallet'}
         </button>
       )}
 
@@ -89,6 +101,9 @@ export default function WalletPanel() {
               {w.name}
             </button>
           ))}
+          <button className="btn-outline" onClick={() => setWalletChoices(undefined)} disabled={busy}>
+            Cancel
+          </button>
         </div>
       )}
 
@@ -97,7 +112,14 @@ export default function WalletPanel() {
           <button className="btn-primary" onClick={handleProve} disabled={busy}>
             {busy ? 'Proving…' : 'Prove trust score > 70 (privately)'}
           </button>
-          <button className="btn-outline" onClick={disconnect} disabled={busy}>
+          <button
+            className="btn-outline"
+            onClick={() => {
+              setWalletChoices(undefined);
+              disconnect();
+            }}
+            disabled={busy}
+          >
             Disconnect
           </button>
         </>
@@ -122,6 +144,7 @@ export default function WalletPanel() {
       )}
 
       {error && <div style={{ color: '#EF4444', fontSize: '0.85rem' }}>{error}</div>}
+      {localError && <div style={{ color: '#EF4444', fontSize: '0.85rem' }}>{localError}</div>}
 
       <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>
         Your score is proven (YES/NO) without ever revealing its value — selective disclosure.
