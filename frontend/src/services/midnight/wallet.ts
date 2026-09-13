@@ -114,7 +114,8 @@ export const connectToWallet = (logger: Logger, networkId: string, rdns?: string
         error
           ? throwError(() => {
               logger.error({ error }, 'Unable to enable connector API');
-              return new Error('Application is not authorized by the wallet.');
+              if (error instanceof Error) return error;
+              return new Error(String(error));
             })
           : apis,
       ),
